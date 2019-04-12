@@ -1,0 +1,1 @@
+protoc -I protos/v1/omci -I protos/v1/voltha -I protos/v1/ietf -I protos/v1/bbf_fiber -I protos/v1/openflow_13 -I /usr/local/include -I protos/common -I protos/v1/common -I protos/v1 --go_out=plugins=grpc:src protos/v1/ietf/*.proto

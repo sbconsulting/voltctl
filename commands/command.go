@@ -2,6 +2,8 @@ package commands
 
 import (
 	"fmt"
+	"github.com/ciena/voltctl/format"
+	"google.golang.org/grpc"
 )
 
 type CommandNotFound struct {
@@ -12,21 +14,31 @@ func (c *CommandNotFound) Error() string {
 	return fmt.Sprintf("Unable to locate command '%s'", c.command)
 }
 
-type CommandResult interface {
-	ToJSON() string
-	ToTable(format string, filter string) string
+type Anonymous struct{}
+type CommandResult struct {
+	Format format.Format
+	Data   interface{}
 }
 
 type Command struct {
-	Invoke      func(args []string) (*CommandResult, error)
+	Invoke      func(conn *grpc.ClientConn, args []string) (*CommandResult, error)
 	subcommands map[string]*Command
 }
 
-func noCommand(args []string) (*CommandResult, error) {
+func noCommand(conn *grpc.ClientConn, args []string) (*CommandResult, error) {
 	return nil, nil
 }
 
 var Commands = map[string]*Command{
+	"adapter": {
+		Invoke: noCommand,
+		subcommands: map[string]*Command{
+			"list": {
+				Invoke:      listAllAdapters,
+				subcommands: nil,
+			},
+		},
+	},
 	"device": {
 		Invoke: noCommand,
 		subcommands: map[string]*Command{
@@ -53,8 +65,6 @@ func lookupCommand(base *Command, args []string) (*Command, error) {
 	if args == nil || len(args) == 0 {
 		return base, nil
 	}
-
-	fmt.Printf("Looking for '%s'\n", args[0])
 
 	if base == nil {
 		cmd, ok = Commands[args[0]]
