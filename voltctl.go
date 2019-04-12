@@ -28,6 +28,7 @@ type config struct {
 	Server     string `yaml:"server"`
 }
 
+var voltServer = flag.String("server", "", "Endpoint for VOLTHA API")
 var voltConfigFile = flag.String("voltconfig", "", "Path to the voltconfig file to use for CLI request")
 var specifiedFormat = flag.String("format", "", "Alternate format for table output")
 
@@ -52,6 +53,11 @@ func main() {
 	err = yaml.Unmarshal(configFile, &cfg)
 	if err != nil {
 		log.Fatalf("Unmarshal: %v", err)
+	}
+
+	// Override from command line
+	if *voltServer != "" {
+		cfg.Server = *voltServer
 	}
 
 	c, e := commands.LookupCommand(flag.Args())
