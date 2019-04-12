@@ -23,6 +23,7 @@ type config struct {
 var voltServer = flag.String("server", "", "Endpoint for VOLTHA API")
 var voltConfigFile = flag.String("voltconfig", "", "Path to the voltconfig file to use for CLI request")
 var specifiedFormat = flag.String("format", "", "Alternate format for table output")
+var quiet = flag.Bool("q", false, "Only display ID in result table")
 
 func main() {
 
@@ -69,7 +70,11 @@ func main() {
 
 	if result != nil && result.Data != nil {
 		tableFormat := format.Format(result.Format)
-		if *specifiedFormat != "" {
+
+		// Quiet overrides a specified format
+		if *quiet {
+			tableFormat = format.Format("{{.Id}}")
+		} else if *specifiedFormat != "" {
 			tableFormat = format.Format(strings.ReplaceAll(*specifiedFormat, "\\t", "\t"))
 		}
 		tableFormat.Execute(os.Stdout, true, result.Data)
