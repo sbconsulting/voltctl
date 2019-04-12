@@ -52,7 +52,7 @@ func main() {
 		cfg.Server = *voltServer
 	}
 
-	c, e := commands.LookupCommand(flag.Args())
+	c, left, e := commands.LookupCommand(flag.Args())
 	if e != nil {
 		panic(e)
 	}
@@ -62,14 +62,16 @@ func main() {
 		log.Fatalf("Unable to connect: %v\n", err)
 	}
 	defer conn.Close()
-	result, err := c.Invoke(conn, []string{})
+	result, err := c.Invoke(conn, left)
 	if err != nil {
 		panic(err)
 	}
 
-	tableFormat := format.Format(result.Format)
-	if *specifiedFormat != "" {
-		tableFormat = format.Format(strings.ReplaceAll(*specifiedFormat, "\\t", "\t"))
+	if result != nil && result.Data != nil {
+		tableFormat := format.Format(result.Format)
+		if *specifiedFormat != "" {
+			tableFormat = format.Format(strings.ReplaceAll(*specifiedFormat, "\\t", "\t"))
+		}
+		tableFormat.Execute(os.Stdout, true, result.Data)
 	}
-	tableFormat.Execute(os.Stdout, true, result.Data)
 }

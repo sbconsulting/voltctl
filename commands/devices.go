@@ -3,10 +3,13 @@ package commands
 import (
 	"github.com/golang/protobuf/ptypes/empty"
 	"google.golang.org/grpc"
+	"strings"
 
 	"context"
+	"flag"
+	"fmt"
+	"github.com/opencord/voltha/protos/go/common"
 	"github.com/opencord/voltha/protos/go/voltha"
-	"log"
 	"time"
 )
 
@@ -18,7 +21,13 @@ func listAllDevices(conn *grpc.ClientConn, args []string) (*CommandResult, error
 
 	adapters, err := client.ListDevices(ctx, &empty.Empty{})
 	if err != nil {
-		log.Fatalf("NOOOOO: %s\n", err)
+		return nil, err
+	}
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
 	}
 
 	result := CommandResult{
@@ -29,10 +38,154 @@ func listAllDevices(conn *grpc.ClientConn, args []string) (*CommandResult, error
 	return &result, nil
 }
 
-func preprovisionDevice(conn *grpc.ClientConn, args []string) (*CommandResult, error) {
+func createDevice(conn *grpc.ClientConn, args []string) (*CommandResult, error) {
+	var deviceType, macAddress, ipAddress, hostAndPort string
+	flags := flag.NewFlagSet("device create", flag.ExitOnError)
+	flags.StringVar(&deviceType, "t", "simulated_olt", "Device type")
+	flags.StringVar(&macAddress, "m", "00:0c:e2:31:40:00", "MAC Address")
+	flags.StringVar(&ipAddress, "i", "", "IP Address")
+	flags.StringVar(&hostAndPort, "H", "", "Host and port")
+
+	err := flags.Parse(args)
+	if err == flag.ErrHelp {
+		return nil, err
+	} else if err != nil {
+		return nil, err
+	}
+
+	device := voltha.Device{}
+
+	if hostAndPort != "" {
+		device.Address = &voltha.Device_HostAndPort{
+			HostAndPort: hostAndPort,
+		}
+	} else if ipAddress != "" {
+		device.Address = &voltha.Device_Ipv4Address{
+			Ipv4Address: ipAddress,
+		}
+	} else if macAddress != "" {
+		device.Address = &voltha.Device_MacAddress{
+			MacAddress: strings.ToLower(macAddress),
+		}
+	}
+	if deviceType != "" {
+		device.Type = deviceType
+	}
+
+	client := voltha.NewVolthaGlobalServiceClient(conn)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
+	got, err := client.CreateDevice(ctx, &device)
+	if err != nil {
+		return nil, err
+	}
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
+	result := CommandResult{
+		Format: "{{.Id}}",
+		Data:   []*voltha.Device{got},
+	}
+
+	return &result, nil
+}
+
+func deleteDevice(conn *grpc.ClientConn, args []string) (*CommandResult, error) {
+
+	if len(args) == 0 {
+		return nil, fmt.Errorf("Must specifyc device(s) to delete")
+	}
+	client := voltha.NewVolthaGlobalServiceClient(conn)
+
+	for _, i := range args {
+		id := common.ID{
+			Id: i,
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+		defer cancel()
+
+		_, err := client.DeleteDevice(ctx, &id)
+		if err != nil {
+			fmt.Printf("Error while deleting '%s': %s\n", i, err)
+			continue
+		}
+
+		select {
+		case <-ctx.Done():
+			fmt.Printf("Error while deleting '%s': %s\n", i, ctx.Err())
+		default:
+			fmt.Println(i)
+		}
+	}
+
 	return nil, nil
 }
 
 func enableDevice(conn *grpc.ClientConn, args []string) (*CommandResult, error) {
+	if len(args) == 0 {
+		return nil, fmt.Errorf("Must specifyc device(s) to enable")
+	}
+	client := voltha.NewVolthaGlobalServiceClient(conn)
+
+	for _, i := range args {
+		id := common.ID{
+			Id: i,
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+		defer cancel()
+
+		_, err := client.EnableDevice(ctx, &id)
+		if err != nil {
+			fmt.Printf("Error while enabling '%s': %s\n", i, err)
+			continue
+		}
+
+		select {
+		case <-ctx.Done():
+			fmt.Printf("Error while enabling '%s': %s\n", i, ctx.Err())
+		default:
+			fmt.Println(i)
+		}
+	}
+
+	return nil, nil
+}
+
+func disableDevice(conn *grpc.ClientConn, args []string) (*CommandResult, error) {
+	if len(args) == 0 {
+		return nil, fmt.Errorf("Must specifyc device(s) to disable")
+	}
+	client := voltha.NewVolthaGlobalServiceClient(conn)
+
+	for _, i := range args {
+		id := common.ID{
+			Id: i,
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+		defer cancel()
+
+		_, err := client.DisableDevice(ctx, &id)
+		if err != nil {
+			fmt.Printf("Error while disabling '%s': %s\n", i, err)
+			continue
+		}
+
+		select {
+		case <-ctx.Done():
+			fmt.Printf("Error while disabling '%s': %s\n", i, ctx.Err())
+		default:
+			fmt.Println(i)
+		}
+	}
+
 	return nil, nil
 }

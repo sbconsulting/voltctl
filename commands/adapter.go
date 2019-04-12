@@ -6,7 +6,6 @@ import (
 
 	"context"
 	"github.com/opencord/voltha/protos/go/voltha"
-	"log"
 	"time"
 )
 
@@ -18,7 +17,13 @@ func listAllAdapters(conn *grpc.ClientConn, args []string) (*CommandResult, erro
 
 	adapters, err := client.ListAdapters(ctx, &empty.Empty{})
 	if err != nil {
-		log.Fatalf("NOOOOO: %s\n", err)
+		return nil, err
+	}
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
 	}
 
 	result := CommandResult{

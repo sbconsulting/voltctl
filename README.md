@@ -32,6 +32,11 @@ well, `voltctl -server host:port ...`.
 Currently only two commands are working
 - `voltctl adapter list` - displays the installed adapters
 - `voltctl device list` - displays the devices in the system
+- `voltctl device create [-t type] [-i ipv4] [-m mac] [-H host_and_port]` -
+  create or pre-provision a device
+- `voltctl delete DEVICE_ID [DEVICE_ID...]` - delete one or more devices
+- `voltctl enable DEVICE_ID [DEVICE_ID...]` - enable one or more devices
+- `voltctl disable DEVICE_ID [DEVICE_ID...]` - disable one or more devices
 
 ## Output Format
 Each command has a default output table format. This can be overriden from
