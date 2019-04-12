@@ -4,23 +4,15 @@ import (
 	//"context"
 	"flag"
 	"fmt"
+	"github.com/ciena/voltctl/format"
 	"io/ioutil"
 	"log"
 	"os"
-	// "regexp"
-	// "strings"
-	//"text/tabwriter"
-	//"text/template"
-	//"text/template/parse"
-	//"time"
-	"github.com/ciena/voltctl/format"
-
-	//"github.com/golang/protobuf/ptypes/empty"
+	"strings"
 
 	"github.com/ciena/voltctl/commands"
 	"google.golang.org/grpc"
 	"gopkg.in/yaml.v2"
-	//"github.com/opencord/voltha/protos/go/voltha"
 )
 
 type config struct {
@@ -77,7 +69,7 @@ func main() {
 
 	tableFormat := format.Format(result.Format)
 	if *specifiedFormat != "" {
-		tableFormat = format.Format(*specifiedFormat)
+		tableFormat = format.Format(strings.ReplaceAll(*specifiedFormat, "\\t", "\t"))
 	}
 	tableFormat.Execute(os.Stdout, true, result.Data)
 }
