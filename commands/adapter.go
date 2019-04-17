@@ -20,11 +20,36 @@ import (
 	"google.golang.org/grpc"
 
 	"context"
+	"github.com/ciena/voltctl/format"
+	flags "github.com/jessevdk/go-flags"
 	"github.com/opencord/voltha/protos/go/voltha"
+	"os"
+	"strings"
 	"time"
 )
 
-func listAllAdapters(conn *grpc.ClientConn, args []string) (*CommandResult, error) {
+const (
+	DEFAULT_OUTPUT_FORMAT = "table{{ .Id }}\t{{.Vendor}}\t{{.Version}}"
+)
+
+func listAllAdapters(conn *grpc.ClientConn, command *CommandContext) (*CommandResult, error) {
+	outputOpts := OutputOptions{}
+
+	parser := flags.NewNamedParser(strings.Join(command.Path, " "), flags.Default)
+	_, err := parser.AddGroup("Command Options", "", &outputOpts)
+	if err != nil {
+		panic(err)
+	}
+
+	_, err = parser.ParseArgs(command.Args)
+	if err != nil {
+		real := err.(*flags.Error)
+		if real.Type == flags.ErrHelp {
+			return nil, nil
+		}
+		os.Exit(1)
+	}
+
 	client := voltha.NewVolthaGlobalServiceClient(conn)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
@@ -41,9 +66,18 @@ func listAllAdapters(conn *grpc.ClientConn, args []string) (*CommandResult, erro
 	default:
 	}
 
+	outputFormat := CharReplacer.Replace(outputOpts.Format)
+	if outputFormat == "" {
+		outputFormat = DEFAULT_OUTPUT_FORMAT
+	}
+	if outputOpts.Quiet {
+		outputFormat = "{{.Id}}"
+	}
+
 	result := CommandResult{
-		Format: "table{{ .Id }}\t{{.Vendor}}\t{{.Version}}",
-		Data:   adapters.Items,
+		Format:   format.Format(outputFormat),
+		OutputAs: toOutputType(outputOpts.OutputAs),
+		Data:     adapters.Items,
 	}
 
 	return &result, nil

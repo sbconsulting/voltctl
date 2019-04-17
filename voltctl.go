@@ -16,18 +16,17 @@
 package main
 
 import (
-	//"context"
-	"flag"
+	"encoding/json"
 	"fmt"
+	"github.com/ciena/voltctl/commands"
 	"github.com/ciena/voltctl/format"
+	flags "github.com/jessevdk/go-flags"
+	"google.golang.org/grpc"
+	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"log"
 	"os"
-	"strings"
-
-	"github.com/ciena/voltctl/commands"
-	"google.golang.org/grpc"
-	"gopkg.in/yaml.v2"
+	"path"
 )
 
 type config struct {
@@ -35,26 +34,46 @@ type config struct {
 	Server     string `yaml:"server"`
 }
 
-var voltServer = flag.String("server", "", "Endpoint for VOLTHA API")
-var voltConfigFile = flag.String("voltconfig", "", "Path to the voltconfig file to use for CLI request")
-var specifiedFormat = flag.String("format", "", "Alternate format for table output")
-var quiet = flag.Bool("q", false, "Only display ID in result table")
+type GlobalOptions struct {
+	Config string `short:"c" long:"config" env:"VOLTCONFIG" default:"" description:"Location of client config file"`
+	Server string `short:"s" long:"server" default:"" description:"IP/Host and port of VOLTHA"`
+	Debug  bool   `short:"d" long:"debug" description:"Enable debug mode"`
+	UseTLS bool   `long:"tls" description:"Use TLS"`
+	CACert string `long:"tlscacert" description:"Trust certs signed only by this CA"`
+	Cert   string `long:"tlscert" description:"Path to TLS vertificate file"`
+	Key    string `long:"tlskey" description:"Path to TLS key file"`
+	Verify bool   `long:"tlsverify" description:"Use TLS and verify the remote"`
+}
 
 func main() {
 
-	flag.Parse()
+	globalOpts := GlobalOptions{}
 
-	if voltConfigFile == nil || len(*voltConfigFile) == 0 {
+	parser := flags.NewNamedParser(path.Base(os.Args[0]), flags.Default|flags.PassAfterNonOption)
+	_, err := parser.AddGroup("Application Options", "", &globalOpts)
+	if err != nil {
+		panic(err)
+	}
+
+	left, err := parser.ParseArgs(os.Args[1:])
+	if err != nil {
+		real := err.(*flags.Error)
+		if real.Type == flags.ErrHelp {
+			return
+		}
+		os.Exit(1)
+	}
+
+	if len(globalOpts.Config) == 0 {
 		home, err := os.UserHomeDir()
 		if err != nil {
 			log.Printf("Unable to discover they users home directory: %s\n", err)
 		}
-		defaultConfigFile := fmt.Sprintf("%s/.volt/config", home)
-		voltConfigFile = &defaultConfigFile
+		globalOpts.Config = fmt.Sprintf("%s/.volt/config", home)
 	}
 
 	var cfg config
-	configFile, err := ioutil.ReadFile(*voltConfigFile)
+	configFile, err := ioutil.ReadFile(globalOpts.Config)
 	if err != nil {
 		log.Printf("configFile.Get err   #%v ", err)
 	}
@@ -64,13 +83,13 @@ func main() {
 	}
 
 	// Override from command line
-	if *voltServer != "" {
-		cfg.Server = *voltServer
+	if globalOpts.Server != "" {
+		cfg.Server = globalOpts.Server
 	}
 
-	c, left, e := commands.LookupCommand(flag.Args())
-	if e != nil {
-		panic(e)
+	context, err := commands.LookupCommand(left)
+	if err != nil {
+		panic(err)
 	}
 
 	conn, err := grpc.Dial(cfg.Server, grpc.WithInsecure())
@@ -78,20 +97,27 @@ func main() {
 		log.Fatalf("Unable to connect: %v\n", err)
 	}
 	defer conn.Close()
-	result, err := c.Invoke(conn, left)
+	result, err := context.Command.Invoke(conn, context)
 	if err != nil {
 		panic(err)
 	}
 
 	if result != nil && result.Data != nil {
-		tableFormat := format.Format(result.Format)
-
-		// Quiet overrides a specified format
-		if *quiet {
-			tableFormat = format.Format("{{.Id}}")
-		} else if *specifiedFormat != "" {
-			tableFormat = format.Format(strings.ReplaceAll(*specifiedFormat, "\\t", "\t"))
+		if result.OutputAs == commands.OUTPUT_TABLE {
+			tableFormat := format.Format(result.Format)
+			tableFormat.Execute(os.Stdout, true, result.Data)
+		} else if result.OutputAs == commands.OUTPUT_JSON {
+			asJson, err := json.Marshal(&result.Data)
+			if err != nil {
+				panic(err)
+			}
+			fmt.Printf("%s", asJson)
+		} else if result.OutputAs == commands.OUTPUT_YAML {
+			asYaml, err := yaml.Marshal(&result.Data)
+			if err != nil {
+				panic(err)
+			}
+			fmt.Printf("%s", asYaml)
 		}
-		tableFormat.Execute(os.Stdout, true, result.Data)
 	}
 }

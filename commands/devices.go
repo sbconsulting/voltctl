@@ -18,17 +18,40 @@ package commands
 import (
 	"github.com/golang/protobuf/ptypes/empty"
 	"google.golang.org/grpc"
+	"os"
 	"strings"
 
 	"context"
-	"flag"
 	"fmt"
+	"github.com/ciena/voltctl/format"
+	flags "github.com/jessevdk/go-flags"
 	"github.com/opencord/voltha/protos/go/common"
 	"github.com/opencord/voltha/protos/go/voltha"
 	"time"
 )
 
-func listAllDevices(conn *grpc.ClientConn, args []string) (*CommandResult, error) {
+const (
+	DEFAULT_DEVICE_FORMAT = "table{{ .Id }}\t{{.Type}}\t{{.Root}}\t{{.ParentId}}\t{{.SerialNumber}}\t{{.Vlan}}\t{{.AdminState}}\t{{.OperStatus}}\t{{.ConnectStatus}}"
+)
+
+func listAllDevices(conn *grpc.ClientConn, command *CommandContext) (*CommandResult, error) {
+	outputOpts := OutputOptions{}
+
+	parser := flags.NewNamedParser(strings.Join(command.Path, " "), flags.Default)
+	_, err := parser.AddGroup("Command Options", "", &outputOpts)
+	if err != nil {
+		panic(err)
+	}
+
+	_, err = parser.ParseArgs(command.Args)
+	if err != nil {
+		real := err.(*flags.Error)
+		if real.Type == flags.ErrHelp {
+			return nil, nil
+		}
+		os.Exit(1)
+	}
+
 	client := voltha.NewVolthaGlobalServiceClient(conn)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
@@ -45,46 +68,64 @@ func listAllDevices(conn *grpc.ClientConn, args []string) (*CommandResult, error
 	default:
 	}
 
-	result := CommandResult{
-		Format: "table{{ .Id }}\t{{.Type}}\t{{.Root}}\t{{.ParentId}}\t{{.SerialNumber}}\t{{.Vlan}}\t{{.AdminState}}\t{{.OperStatus}}\t{{.ConnectStatus}}",
-		Data:   adapters.Items,
+	outputFormat := CharReplacer.Replace(outputOpts.Format)
+	if outputFormat == "" {
+		outputFormat = DEFAULT_DEVICE_FORMAT
+	}
+	if outputOpts.Quiet {
+		outputFormat = "{{.Id}}"
 	}
 
+	result := CommandResult{
+		Format:   format.Format(outputFormat),
+		OutputAs: toOutputType(outputOpts.OutputAs),
+		Data:     adapters.Items,
+	}
 	return &result, nil
 }
 
-func createDevice(conn *grpc.ClientConn, args []string) (*CommandResult, error) {
-	var deviceType, macAddress, ipAddress, hostAndPort string
-	flags := flag.NewFlagSet("device create", flag.ExitOnError)
-	flags.StringVar(&deviceType, "t", "simulated_olt", "Device type")
-	flags.StringVar(&macAddress, "m", "00:0c:e2:31:40:00", "MAC Address")
-	flags.StringVar(&ipAddress, "i", "", "IP Address")
-	flags.StringVar(&hostAndPort, "H", "", "Host and port")
+type CreateDeviceOptions struct {
+	DeviceType  string `short:"t" long:"devicetype" default:"simulated_olt" description:"Device type"`
+	MACAddress  string `short:"m" long:"macaddress" default:"00:0c:e2:31:40:00" description:"MAC Address"`
+	IPAddress   string `short:"i" long:"ipaddress" default:"" description:"IP Address"`
+	HostAndPort string `short:"H" long:"hostandport" default:"" description:"Host and port"`
+}
 
-	err := flags.Parse(args)
-	if err == flag.ErrHelp {
-		return nil, err
-	} else if err != nil {
-		return nil, err
+func createDevice(conn *grpc.ClientConn, command *CommandContext) (*CommandResult, error) {
+
+	options := CreateDeviceOptions{}
+
+	parser := flags.NewNamedParser(strings.Join(command.Path, " "), flags.Default)
+	_, err := parser.AddGroup("Command Options", "", &options)
+	if err != nil {
+		panic(err)
 	}
 
+	_, err = parser.ParseArgs(command.Args)
+	if err != nil {
+		real := err.(*flags.Error)
+		if real.Type == flags.ErrHelp {
+			return nil, nil
+		}
+		os.Exit(1)
+	}
 	device := voltha.Device{}
 
-	if hostAndPort != "" {
+	if options.HostAndPort != "" {
 		device.Address = &voltha.Device_HostAndPort{
-			HostAndPort: hostAndPort,
+			HostAndPort: options.HostAndPort,
 		}
-	} else if ipAddress != "" {
+	} else if options.IPAddress != "" {
 		device.Address = &voltha.Device_Ipv4Address{
-			Ipv4Address: ipAddress,
+			Ipv4Address: options.IPAddress,
 		}
-	} else if macAddress != "" {
+	} else if options.MACAddress != "" {
 		device.Address = &voltha.Device_MacAddress{
-			MacAddress: strings.ToLower(macAddress),
+			MacAddress: strings.ToLower(options.MACAddress),
 		}
 	}
-	if deviceType != "" {
-		device.Type = deviceType
+	if options.DeviceType != "" {
+		device.Type = options.DeviceType
 	}
 
 	client := voltha.NewVolthaGlobalServiceClient(conn)
@@ -111,14 +152,14 @@ func createDevice(conn *grpc.ClientConn, args []string) (*CommandResult, error) 
 	return &result, nil
 }
 
-func deleteDevice(conn *grpc.ClientConn, args []string) (*CommandResult, error) {
+func deleteDevice(conn *grpc.ClientConn, command *CommandContext) (*CommandResult, error) {
 
-	if len(args) == 0 {
+	if len(command.Args) == 0 {
 		return nil, fmt.Errorf("Must specifyc device(s) to delete")
 	}
 	client := voltha.NewVolthaGlobalServiceClient(conn)
 
-	for _, i := range args {
+	for _, i := range command.Args {
 		id := common.ID{
 			Id: i,
 		}
@@ -143,13 +184,13 @@ func deleteDevice(conn *grpc.ClientConn, args []string) (*CommandResult, error) 
 	return nil, nil
 }
 
-func enableDevice(conn *grpc.ClientConn, args []string) (*CommandResult, error) {
-	if len(args) == 0 {
+func enableDevice(conn *grpc.ClientConn, command *CommandContext) (*CommandResult, error) {
+	if len(command.Args) == 0 {
 		return nil, fmt.Errorf("Must specifyc device(s) to enable")
 	}
 	client := voltha.NewVolthaGlobalServiceClient(conn)
 
-	for _, i := range args {
+	for _, i := range command.Args {
 		id := common.ID{
 			Id: i,
 		}
@@ -174,13 +215,13 @@ func enableDevice(conn *grpc.ClientConn, args []string) (*CommandResult, error) 
 	return nil, nil
 }
 
-func disableDevice(conn *grpc.ClientConn, args []string) (*CommandResult, error) {
-	if len(args) == 0 {
+func disableDevice(conn *grpc.ClientConn, command *CommandContext) (*CommandResult, error) {
+	if len(command.Args) == 0 {
 		return nil, fmt.Errorf("Must specifyc device(s) to disable")
 	}
 	client := voltha.NewVolthaGlobalServiceClient(conn)
 
-	for _, i := range args {
+	for _, i := range command.Args {
 		id := common.ID{
 			Id: i,
 		}

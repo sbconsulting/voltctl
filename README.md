@@ -39,13 +39,18 @@ Currently only two commands are working
 - `voltctl delete DEVICE_ID [DEVICE_ID...]` - delete one or more devices
 - `voltctl enable DEVICE_ID [DEVICE_ID...]` - enable one or more devices
 - `voltctl disable DEVICE_ID [DEVICE_ID...]` - disable one or more devices
+- `voltctl version` - display the client and server version
 
 ## Output Format
 Each command has a default output table format. This can be overriden from
-the command line using the `voltctl -format=...` option. The specification
+the command line using the `voltctl --format=...` option. The specification
 of the format is roughly equivalent to the `docker` or `kubectl` command. If
 the prefix `table` is specified a table with headers will be displayed, else
 each line will be output as specified.
+
+The output of a command may also be written as `JSON` or `YAML` by using the
+`--outputas` or `-o` command line option. Valid values for this options are
+`table`, `json`, or `yaml`.
 
 ### Examples
 ```
@@ -83,18 +88,21 @@ ID                  TYPE          ROOT     PARENTID            SERIALNUMBER     
 ```
 
 ```
-voltctl -format 'table{{.Id}}\t{{.SerialNumber}}\t{{.ConnectStatus}}' device list
+voltctl device list --format 'table{{.Id}}\t{{.SerialNumber}}\t{{.ConnectStatus}}'
 ID                  SERIALNUMBER      CONNECTSTATUS
 00015bbbfdb3c068    10.1.4.4:50060    REACHABLE
 0001552615104a2c    PSMO12345678      REACHABLE
 ```
 
 ```
-voltctl -server voltha:50555 -format '{{.Id}},{{.SerialNumber}},{{.ConnectStatus}}' device list
+voltctl --server voltha:50555 device list --format '{{.Id}},{{.SerialNumber}},{{.ConnectStatus}}'
 00015bbbfdb3c068,10.1.4.4:50060,REACHABLE
 0001552615104a2c,PSMO12345678,REACHABLE
 ````
 
-
+```
+voltctl device list --outputas json
+[{"id":"00015bbbfdb3c068","type":"ponsim_olt","root":true,"parent_id":"0001aabbccddeeff","vendor":"ponsim","model":"n/a","serial_number":"10.1.4.4:50060","adapter":"ponsim_olt","Address":{"HostAndPort":"10.1.4.4:50060"},"admin_state":3,"oper_status":4,"connect_status":2},{"id":"0001552615104a2c","type":"ponsim_onu","parent_id":"00015bbbfdb3c068","parent_port_no":1,"vendor":"ponsim","model":"n/a","serial_number":"PSMO12345678","vlan":128,"Address":null,"proxy_address":{"device_id":"00015bbbfdb3c068","channel_id":128},"admin_state":3,"oper_status":4,"connect_status":2}]
+```
 
 WIP - just barely started

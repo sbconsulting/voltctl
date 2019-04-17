@@ -16,10 +16,31 @@
 package commands
 
 import (
+	"context"
 	"fmt"
 	"github.com/ciena/voltctl/format"
+	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/opencord/voltha/protos/go/voltha"
 	"google.golang.org/grpc"
+	"strings"
+	"time"
 )
+
+type OutputType uint8
+
+const (
+	OUTPUT_TABLE OutputType = iota
+	OUTPUT_JSON
+	OUTPUT_YAML
+)
+
+var CharReplacer = strings.NewReplacer("\\t", "\t", "\\n", "\n")
+
+type OutputOptions struct {
+	Format   string `long:"format" default:"" description:"Format to use to output structured data"`
+	Quiet    bool   `short:"q" long:"quiet" description:"Output only the IDs of the objects"`
+	OutputAs string `short:"o" long:"outputas" default:"table" choice:"table" choice:"json" choice:"yaml" description:"Type of output to generate"`
+}
 
 type CommandNotFound struct {
 	command string
@@ -29,22 +50,67 @@ func (c *CommandNotFound) Error() string {
 	return fmt.Sprintf("Unable to locate command '%s'", c.command)
 }
 
-type Anonymous struct{}
+func toOutputType(in string) OutputType {
+	switch in {
+	case "table":
+		fallthrough
+	default:
+		return OUTPUT_TABLE
+	case "json":
+		return OUTPUT_JSON
+	case "yaml":
+		return OUTPUT_YAML
+	}
+}
+
 type CommandResult struct {
-	Format format.Format
-	Data   interface{}
+	Format   format.Format
+	OutputAs OutputType
+	Data     interface{}
+}
+
+type CommandContext struct {
+	Path    []string
+	Args    []string
+	Command *Command
 }
 
 type Command struct {
-	Invoke      func(conn *grpc.ClientConn, args []string) (*CommandResult, error)
+	Invoke      func(conn *grpc.ClientConn, context *CommandContext) (*CommandResult, error)
 	subcommands map[string]*Command
 }
 
-func noCommand(conn *grpc.ClientConn, args []string) (*CommandResult, error) {
+func noCommand(conn *grpc.ClientConn, command *CommandContext) (*CommandResult, error) {
 	return nil, fmt.Errorf("Unknown command specified")
 }
 
+func showVersion(conn *grpc.ClientConn, command *CommandContext) (*CommandResult, error) {
+	client := voltha.NewVolthaGlobalServiceClient(conn)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
+	got, err := client.GetVoltha(ctx, &empty.Empty{})
+	if err != nil {
+		return nil, err
+	}
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
+	fmt.Println("Client Version: beta")
+	fmt.Printf("Cluster Version: %s", got.Version)
+	return nil, nil
+}
+
 var Commands = map[string]*Command{
+	"version": {
+		Invoke:      showVersion,
+		subcommands: nil,
+	},
 	"adapter": {
 		Invoke: noCommand,
 		subcommands: map[string]*Command{
@@ -81,31 +147,42 @@ var Commands = map[string]*Command{
 	},
 }
 
-func lookupCommand(base *Command, args []string) (*Command, []string, error) {
+func lookupCommand(context *CommandContext) error {
 	var cmd *Command
 	var ok bool
 
-	if args == nil || len(args) == 0 {
-		return base, args, nil
+	if context.Args == nil || len(context.Args) == 0 {
+		return nil
 	}
 
-	if base == nil {
-		cmd, ok = Commands[args[0]]
+	if context.Command == nil {
+		cmd, ok = Commands[context.Args[0]]
 		if !ok {
-			return nil, args, &CommandNotFound{command: args[0]}
+			return &CommandNotFound{command: context.Args[0]}
 		}
-		return lookupCommand(cmd, args[1:])
-	}
-	if base.subcommands != nil {
-		cmd, ok = base.subcommands[args[0]]
-		if ok {
-			return lookupCommand(cmd, args[1:])
+	} else {
+		cmd, ok = context.Command.subcommands[context.Args[0]]
+		if !ok {
+			return nil
 		}
 	}
 
-	return base, args, nil
+	context.Path = append(context.Path, context.Args[0])
+	context.Args = context.Args[1:]
+	context.Command = cmd
+
+	return lookupCommand(context)
 }
 
-func LookupCommand(args []string) (*Command, []string, error) {
-	return lookupCommand(nil, args)
+func LookupCommand(args []string) (*CommandContext, error) {
+	context := CommandContext{
+		Path:    make([]string, 0),
+		Args:    args,
+		Command: nil,
+	}
+	err := lookupCommand(&context)
+	if err != nil {
+		return nil, err
+	}
+	return &context, nil
 }
