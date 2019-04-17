@@ -16,16 +16,14 @@
 package commands
 
 import (
-	"github.com/golang/protobuf/ptypes/empty"
-	"strings"
-
 	"context"
 	"fmt"
 	"github.com/ciena/voltctl/format"
+	"github.com/golang/protobuf/ptypes/empty"
 	flags "github.com/jessevdk/go-flags"
 	"github.com/opencord/voltha/protos/go/common"
 	"github.com/opencord/voltha/protos/go/voltha"
-	"time"
+	"strings"
 )
 
 const (
@@ -85,7 +83,7 @@ func (options *DeviceList) Execute(args []string) error {
 
 	client := voltha.NewVolthaGlobalServiceClient(conn)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	ctx, cancel := context.WithTimeout(context.Background(), GlobalConfig.Grpc.Timeout)
 	defer cancel()
 
 	adapters, err := client.ListDevices(ctx, &empty.Empty{})
@@ -146,7 +144,7 @@ func (options *DeviceCreate) Execute(args []string) error {
 
 	client := voltha.NewVolthaGlobalServiceClient(conn)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	ctx, cancel := context.WithTimeout(context.Background(), GlobalConfig.Grpc.Timeout)
 	defer cancel()
 
 	got, err := client.CreateDevice(ctx, &device)
@@ -179,7 +177,7 @@ func (options *DeviceDelete) Execute(args []string) error {
 			Id: i,
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+		ctx, cancel := context.WithTimeout(context.Background(), GlobalConfig.Grpc.Timeout)
 		defer cancel()
 
 		_, err := client.DeleteDevice(ctx, &id)
@@ -212,7 +210,7 @@ func (options *DeviceEnable) Execute(args []string) error {
 			Id: i,
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+		ctx, cancel := context.WithTimeout(context.Background(), GlobalConfig.Grpc.Timeout)
 		defer cancel()
 
 		_, err := client.EnableDevice(ctx, &id)
@@ -245,7 +243,7 @@ func (options *DeviceDisable) Execute(args []string) error {
 			Id: i,
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+		ctx, cancel := context.WithTimeout(context.Background(), GlobalConfig.Grpc.Timeout)
 		defer cancel()
 
 		_, err := client.DisableDevice(ctx, &id)

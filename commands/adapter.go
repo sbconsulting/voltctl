@@ -22,7 +22,6 @@ import (
 	"github.com/ciena/voltctl/format"
 	flags "github.com/jessevdk/go-flags"
 	"github.com/opencord/voltha/protos/go/voltha"
-	"time"
 )
 
 const (
@@ -52,7 +51,7 @@ func (options *AdapterList) Execute(args []string) error {
 
 	client := voltha.NewVolthaGlobalServiceClient(conn)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	ctx, cancel := context.WithTimeout(context.Background(), GlobalConfig.Grpc.Timeout)
 	defer cancel()
 
 	adapters, err := client.ListAdapters(ctx, &empty.Empty{})

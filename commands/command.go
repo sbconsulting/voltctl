@@ -25,6 +25,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 )
 
 type OutputType uint8
@@ -37,19 +38,34 @@ const (
 
 var CharReplacer = strings.NewReplacer("\\t", "\t", "\\n", "\n")
 
-type GlobalOptions struct {
+var GlobalConfig struct {
+	ApiVersion string `yaml:"apiVersion"`
+	Server     string `yaml:"server"`
+	Tls        struct {
+		UseTls string `yaml:"useTls"`
+		CACert string `yaml:"caCert"`
+		Cert   string `yaml:"cert"`
+		Key    string `yaml:"key"`
+		Verify string `yaml:"verify"`
+	} `yaml:"tls"`
+	Grpc struct {
+		Timeout time.Duration `yaml:timeout"`
+	}
+}
+
+var GlobalOptions struct {
 	Config string `short:"c" long:"config" env:"VOLTCONFIG" value-name:"FILE" default:"" description:"Location of client config file"`
 	Server string `short:"s" long:"server" default:"" value-name:"SERVER:PORT" description:"IP/Host and port of VOLTHA"`
 	Debug  bool   `short:"d" long:"debug" description:"Enable debug mode"`
 	UseTLS bool   `long:"tls" description:"Use TLS"`
-	CACert string `long:"tlscacert" description:"Trust certs signed only by this CA"`
-	Cert   string `long:"tlscert" description:"Path to TLS vertificate file"`
-	Key    string `long:"tlskey" description:"Path to TLS key file"`
+	CACert string `long:"tlscacert" value-name:"CA_CERT_FILE" description:"Trust certs signed only by this CA"`
+	Cert   string `long:"tlscert" value-name:"CERT_FILE" description:"Path to TLS vertificate file"`
+	Key    string `long:"tlskey" value-name:"KEY_FILE" description:"Path to TLS key file"`
 	Verify bool   `long:"tlsverify" description:"Use TLS and verify the remote"`
 }
 
 type OutputOptions struct {
-	Format   string `long:"format" default:"" description:"Format to use to output structured data"`
+	Format   string `long:"format" value-name:"FORMAT" default:"" description:"Format to use to output structured data"`
 	Quiet    bool   `short:"q" long:"quiet" description:"Output only the IDs of the objects"`
 	OutputAs string `short:"o" long:"outputas" default:"table" choice:"table" choice:"json" choice:"yaml" description:"Type of output to generate"`
 }
@@ -78,33 +94,30 @@ type config struct {
 	Server     string `yaml:"server"`
 }
 
-var GlobalOpts = GlobalOptions{}
-
 func NewConnection() (*grpc.ClientConn, error) {
-	if len(GlobalOpts.Config) == 0 {
+	if len(GlobalOptions.Config) == 0 {
 		home, err := os.UserHomeDir()
 		if err != nil {
 			log.Printf("Unable to discover they users home directory: %s\n", err)
 		}
-		GlobalOpts.Config = fmt.Sprintf("%s/.volt/config", home)
+		GlobalOptions.Config = fmt.Sprintf("%s/.volt/config", home)
 	}
 
-	var cfg config
-	configFile, err := ioutil.ReadFile(GlobalOpts.Config)
+	configFile, err := ioutil.ReadFile(GlobalOptions.Config)
 	if err != nil {
 		log.Printf("configFile.Get err   #%v ", err)
 	}
-	err = yaml.Unmarshal(configFile, &cfg)
+	err = yaml.Unmarshal(configFile, &GlobalConfig)
 	if err != nil {
 		log.Fatalf("Unmarshal: %v", err)
 	}
 
 	// Override from command line
-	if GlobalOpts.Server != "" {
-		cfg.Server = GlobalOpts.Server
+	if GlobalOptions.Server != "" {
+		GlobalConfig.Server = GlobalOptions.Server
 	}
 
-	return grpc.Dial(cfg.Server, grpc.WithInsecure())
+	return grpc.Dial(GlobalConfig.Server, grpc.WithInsecure())
 }
 
 func GenerateOutput(result *CommandResult) {

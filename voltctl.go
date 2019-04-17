@@ -22,26 +22,10 @@ import (
 	"path"
 )
 
-type config struct {
-	ApiVersion string `yaml:"apiVersion"`
-	Server     string `yaml:"server"`
-}
-
-type GlobalOptions struct {
-	Config string `short:"c" long:"config" env:"VOLTCONFIG" value-name:"FILE" default:"~/.volt/config" description:"Location of client config file"`
-	Server string `short:"s" long:"server" default:"" value-name:"SERVER:PORT" description:"IP/Host and port of VOLTHA"`
-	Debug  bool   `short:"d" long:"debug" description:"Enable debug mode"`
-	UseTLS bool   `long:"tls" description:"Use TLS"`
-	CACert string `long:"tlscacert" description:"Trust certs signed only by this CA"`
-	Cert   string `long:"tlscert" description:"Path to TLS vertificate file"`
-	Key    string `long:"tlskey" description:"Path to TLS key file"`
-	Verify bool   `long:"tlsverify" description:"Use TLS and verify the remote"`
-}
-
 func main() {
 
 	parser := flags.NewNamedParser(path.Base(os.Args[0]), flags.Default|flags.PassAfterNonOption)
-	_, err := parser.AddGroup("Global Options", "", &commands.GlobalOpts)
+	_, err := parser.AddGroup("Global Options", "", &commands.GlobalOptions)
 	if err != nil {
 		panic(err)
 	}
