@@ -16,14 +16,15 @@
 package commands
 
 import (
-	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/ciena/voltctl/format"
-	"github.com/golang/protobuf/ptypes/empty"
-	"github.com/opencord/voltha/protos/go/voltha"
 	"google.golang.org/grpc"
+	"gopkg.in/yaml.v2"
+	"io/ioutil"
+	"log"
+	"os"
 	"strings"
-	"time"
 )
 
 type OutputType uint8
@@ -36,18 +37,21 @@ const (
 
 var CharReplacer = strings.NewReplacer("\\t", "\t", "\\n", "\n")
 
+type GlobalOptions struct {
+	Config string `short:"c" long:"config" env:"VOLTCONFIG" value-name:"FILE" default:"" description:"Location of client config file"`
+	Server string `short:"s" long:"server" default:"" value-name:"SERVER:PORT" description:"IP/Host and port of VOLTHA"`
+	Debug  bool   `short:"d" long:"debug" description:"Enable debug mode"`
+	UseTLS bool   `long:"tls" description:"Use TLS"`
+	CACert string `long:"tlscacert" description:"Trust certs signed only by this CA"`
+	Cert   string `long:"tlscert" description:"Path to TLS vertificate file"`
+	Key    string `long:"tlskey" description:"Path to TLS key file"`
+	Verify bool   `long:"tlsverify" description:"Use TLS and verify the remote"`
+}
+
 type OutputOptions struct {
 	Format   string `long:"format" default:"" description:"Format to use to output structured data"`
 	Quiet    bool   `short:"q" long:"quiet" description:"Output only the IDs of the objects"`
 	OutputAs string `short:"o" long:"outputas" default:"table" choice:"table" choice:"json" choice:"yaml" description:"Type of output to generate"`
-}
-
-type CommandNotFound struct {
-	command string
-}
-
-func (c *CommandNotFound) Error() string {
-	return fmt.Sprintf("Unable to locate command '%s'", c.command)
 }
 
 func toOutputType(in string) OutputType {
@@ -69,120 +73,57 @@ type CommandResult struct {
 	Data     interface{}
 }
 
-type CommandContext struct {
-	Path    []string
-	Args    []string
-	Command *Command
+type config struct {
+	ApiVersion string `yaml:"apiVersion"`
+	Server     string `yaml:"server"`
 }
 
-type Command struct {
-	Invoke      func(conn *grpc.ClientConn, context *CommandContext) (*CommandResult, error)
-	subcommands map[string]*Command
-}
+var GlobalOpts = GlobalOptions{}
 
-func noCommand(conn *grpc.ClientConn, command *CommandContext) (*CommandResult, error) {
-	return nil, fmt.Errorf("Unknown command specified")
-}
-
-func showVersion(conn *grpc.ClientConn, command *CommandContext) (*CommandResult, error) {
-	client := voltha.NewVolthaGlobalServiceClient(conn)
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-	defer cancel()
-
-	got, err := client.GetVoltha(ctx, &empty.Empty{})
-	if err != nil {
-		return nil, err
-	}
-
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	default:
-	}
-
-	fmt.Println("Client Version: beta")
-	fmt.Printf("Cluster Version: %s", got.Version)
-	return nil, nil
-}
-
-var Commands = map[string]*Command{
-	"version": {
-		Invoke:      showVersion,
-		subcommands: nil,
-	},
-	"adapter": {
-		Invoke: noCommand,
-		subcommands: map[string]*Command{
-			"list": {
-				Invoke:      listAllAdapters,
-				subcommands: nil,
-			},
-		},
-	},
-	"device": {
-		Invoke: noCommand,
-		subcommands: map[string]*Command{
-			"create": {
-				Invoke:      createDevice,
-				subcommands: nil,
-			},
-			"delete": {
-				Invoke:      deleteDevice,
-				subcommands: nil,
-			},
-			"list": {
-				Invoke:      listAllDevices,
-				subcommands: nil,
-			},
-			"enable": {
-				Invoke:      enableDevice,
-				subcommands: nil,
-			},
-			"disable": {
-				Invoke:      disableDevice,
-				subcommands: nil,
-			},
-		},
-	},
-}
-
-func lookupCommand(context *CommandContext) error {
-	var cmd *Command
-	var ok bool
-
-	if context.Args == nil || len(context.Args) == 0 {
-		return nil
-	}
-
-	if context.Command == nil {
-		cmd, ok = Commands[context.Args[0]]
-		if !ok {
-			return &CommandNotFound{command: context.Args[0]}
+func NewConnection() (*grpc.ClientConn, error) {
+	if len(GlobalOpts.Config) == 0 {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			log.Printf("Unable to discover they users home directory: %s\n", err)
 		}
-	} else {
-		cmd, ok = context.Command.subcommands[context.Args[0]]
-		if !ok {
-			return nil
+		GlobalOpts.Config = fmt.Sprintf("%s/.volt/config", home)
+	}
+
+	var cfg config
+	configFile, err := ioutil.ReadFile(GlobalOpts.Config)
+	if err != nil {
+		log.Printf("configFile.Get err   #%v ", err)
+	}
+	err = yaml.Unmarshal(configFile, &cfg)
+	if err != nil {
+		log.Fatalf("Unmarshal: %v", err)
+	}
+
+	// Override from command line
+	if GlobalOpts.Server != "" {
+		cfg.Server = GlobalOpts.Server
+	}
+
+	return grpc.Dial(cfg.Server, grpc.WithInsecure())
+}
+
+func GenerateOutput(result *CommandResult) {
+	if result != nil && result.Data != nil {
+		if result.OutputAs == OUTPUT_TABLE {
+			tableFormat := format.Format(result.Format)
+			tableFormat.Execute(os.Stdout, true, result.Data)
+		} else if result.OutputAs == OUTPUT_JSON {
+			asJson, err := json.Marshal(&result.Data)
+			if err != nil {
+				panic(err)
+			}
+			fmt.Printf("%s", asJson)
+		} else if result.OutputAs == OUTPUT_YAML {
+			asYaml, err := yaml.Marshal(&result.Data)
+			if err != nil {
+				panic(err)
+			}
+			fmt.Printf("%s", asYaml)
 		}
 	}
-
-	context.Path = append(context.Path, context.Args[0])
-	context.Args = context.Args[1:]
-	context.Command = cmd
-
-	return lookupCommand(context)
-}
-
-func LookupCommand(args []string) (*CommandContext, error) {
-	context := CommandContext{
-		Path:    make([]string, 0),
-		Args:    args,
-		Command: nil,
-	}
-	err := lookupCommand(&context)
-	if err != nil {
-		return nil, err
-	}
-	return &context, nil
 }

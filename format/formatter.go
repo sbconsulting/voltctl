@@ -71,6 +71,9 @@ func (f Format) Execute(writer io.Writer, withHeaders bool, data interface{}) {
 				tmpl.Execute(tabWriter, slice.Index(i).Interface())
 				tabWriter.Write([]byte("\n"))
 			}
+		} else {
+			tmpl.Execute(tabWriter, data)
+			tabWriter.Write([]byte("\n"))
 		}
 		tabWriter.Flush()
 		return
@@ -82,7 +85,11 @@ func (f Format) Execute(writer io.Writer, withHeaders bool, data interface{}) {
 			tmpl.Execute(writer, slice.Index(i).Interface())
 			writer.Write([]byte("\n"))
 		}
+	} else {
+		tmpl.Execute(writer, data)
+		writer.Write([]byte("\n"))
 	}
+
 }
 
 func (f Format) ExtractHeader() {

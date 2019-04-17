@@ -22,28 +22,26 @@ import (
 	"github.com/ciena/voltctl/format"
 	flags "github.com/jessevdk/go-flags"
 	"github.com/opencord/voltha/protos/go/voltha"
+	"strings"
 	"time"
 )
 
-const (
-	DEFAULT_OUTPUT_FORMAT = "table{{ .Id }}\t{{.Vendor}}\t{{.Version}}"
-)
-
-type AdapterList struct {
-	OutputOptions
+type VersionOutput struct {
+	Client  string `json:"client"`
+	Cluster string `json:"cluster"`
 }
 
-type AdapterOpts struct {
-	List AdapterList `command:"list"`
+type VersionOpts struct {
+	OutputAs string `short:"o" long:"outputas" default:"table" choice:"table" choice:"json" choice:"yaml" description:"Type of output to generate"`
 }
 
-var adapterOpts = AdapterOpts{}
+var versionOpts = VersionOpts{}
 
-func RegisterAdapterCommands(parent *flags.Parser) {
-	parent.AddCommand("adapter", "adapter commands", "Commands to query and manipulate VOLTHA adapters", &adapterOpts)
+func RegisterVersionCommands(parent *flags.Parser) {
+	parent.AddCommand("version", "display version", "Display client and server version", &versionOpts)
 }
 
-func (options *AdapterList) Execute(args []string) error {
+func (options *VersionOpts) Execute(args []string) error {
 	conn, err := NewConnection()
 	if err != nil {
 		return err
@@ -55,7 +53,7 @@ func (options *AdapterList) Execute(args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
-	adapters, err := client.ListAdapters(ctx, &empty.Empty{})
+	got, err := client.GetVoltha(ctx, &empty.Empty{})
 	if err != nil {
 		return err
 	}
@@ -66,19 +64,12 @@ func (options *AdapterList) Execute(args []string) error {
 	default:
 	}
 
-	outputFormat := CharReplacer.Replace(options.Format)
-	if outputFormat == "" {
-		outputFormat = DEFAULT_OUTPUT_FORMAT
-	}
-	if options.Quiet {
-		outputFormat = "{{.Id}}"
+	result := CommandResult{
+		Format:   format.Format("Client Version: {{.Client}}\nCluster Version: {{.Cluster}}"),
+		OutputAs: toOutputType(options.OutputAs),
+		Data:     VersionOutput{Client: "beta", Cluster: strings.ReplaceAll(got.Version, "\n", "")},
 	}
 
-	result := CommandResult{
-		Format:   format.Format(outputFormat),
-		OutputAs: toOutputType(options.OutputAs),
-		Data:     adapters.Items,
-	}
 	GenerateOutput(&result)
 
 	return nil
