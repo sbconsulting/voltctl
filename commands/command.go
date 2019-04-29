@@ -38,19 +38,34 @@ const (
 
 var CharReplacer = strings.NewReplacer("\\t", "\t", "\\n", "\n")
 
-var GlobalConfig struct {
-	ApiVersion string `yaml:"apiVersion"`
-	Server     string `yaml:"server"`
-	Tls        struct {
-		UseTls string `yaml:"useTls"`
-		CACert string `yaml:"caCert"`
-		Cert   string `yaml:"cert"`
-		Key    string `yaml:"key"`
-		Verify string `yaml:"verify"`
-	} `yaml:"tls"`
-	Grpc struct {
-		Timeout time.Duration `yaml:timeout"`
-	}
+type GrpcConfigSpec struct {
+	Timeout time.Duration `yaml:"timeout"`
+}
+
+type TlsConfigSpec struct {
+	UseTls bool   `yaml:"useTls"`
+	CACert string `yaml:"caCert"`
+	Cert   string `yaml:"cert"`
+	Key    string `yaml:"key"`
+	Verify string `yaml:"verify"`
+}
+
+type GlobalConfigSpec struct {
+	ApiVersion string        `yaml:"apiVersion"`
+	Server     string        `yaml:"server"`
+	Tls        TlsConfigSpec `yaml:"tls"`
+	Grpc       GrpcConfigSpec
+}
+
+var GlobalConfig = GlobalConfigSpec{
+	ApiVersion: "v1",
+	Server:     "localhost",
+	Tls: TlsConfigSpec{
+		UseTls: false,
+	},
+	Grpc: GrpcConfigSpec{
+		Timeout: time.Second * 10,
+	},
 }
 
 var GlobalOptions struct {
@@ -104,13 +119,16 @@ func NewConnection() (*grpc.ClientConn, error) {
 		GlobalOptions.Config = fmt.Sprintf("%s/.volt/config", home)
 	}
 
-	configFile, err := ioutil.ReadFile(GlobalOptions.Config)
-	if err != nil {
-		log.Printf("configFile.Get err   #%v ", err)
-	}
-	err = yaml.Unmarshal(configFile, &GlobalConfig)
-	if err != nil {
-		log.Fatalf("Unmarshal: %v", err)
+	info, err := os.Stat(GlobalOptions.Config)
+	if err == nil && !info.IsDir() {
+		configFile, err := ioutil.ReadFile(GlobalOptions.Config)
+		if err != nil {
+			log.Printf("configFile.Get err   #%v ", err)
+		}
+		err = yaml.Unmarshal(configFile, &GlobalConfig)
+		if err != nil {
+			log.Fatalf("Unmarshal: %v", err)
+		}
 	}
 
 	// Override from command line
