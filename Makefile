@@ -47,7 +47,7 @@ commands/voltha_v2_pb.go: protosets/voltha_v2.pb
 	@echo "package commands" > $@
 	@echo "" >> $@
 	@echo "var V2Descriptor = []byte{" >> $@
-	hexdump -ve '1/1 "0x%02x,"' protosets/voltha_v1.pb | fold -w 60 -s >> $@
+	hexdump -ve '1/1 "0x%02x,"' protosets/voltha_v2.pb | fold -w 60 -s >> $@
 	@echo "}" >> $@
 	@go fmt $@
 
