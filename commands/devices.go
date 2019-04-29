@@ -19,10 +19,9 @@ import (
 	"context"
 	"fmt"
 	"github.com/ciena/voltctl/format"
-	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/fullstorydev/grpcurl"
 	flags "github.com/jessevdk/go-flags"
-	"github.com/opencord/voltha/protos/go/common"
-	"github.com/opencord/voltha/protos/go/voltha"
+	"github.com/jhump/protoreflect/dynamic"
 	"strings"
 )
 
@@ -32,6 +31,18 @@ const (
 
 type DeviceList struct {
 	OutputOptions
+}
+
+type DeviceListOutput struct {
+	Id            string
+	Type          string
+	Root          bool
+	ParentId      string
+	SerialNumber  string
+	Vlan          uint32
+	AdminState    string
+	OperStatus    string
+	ConnectStatus string
 }
 
 type DeviceCreate struct {
@@ -81,20 +92,32 @@ func (options *DeviceList) Execute(args []string) error {
 	}
 	defer conn.Close()
 
-	client := voltha.NewVolthaGlobalServiceClient(conn)
-
-	ctx, cancel := context.WithTimeout(context.Background(), GlobalConfig.Grpc.Timeout)
-	defer cancel()
-
-	adapters, err := client.ListDevices(ctx, &empty.Empty{})
+	descriptor, method, err := GetMethod("device-list")
 	if err != nil {
 		return err
 	}
 
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
+	ctx, cancel := context.WithTimeout(context.Background(), GlobalConfig.Grpc.Timeout)
+	defer cancel()
+
+	h := &RpcEventHandler{}
+	err = grpcurl.InvokeRPC(ctx, descriptor, conn, method, []string{}, h, h.GetParams)
+	if err != nil {
+		return err
+	}
+
+	if h.Status != nil && h.Status.Err() != nil {
+		return h.Status.Err()
+	}
+
+	d, err := dynamic.AsDynamicMessage(h.Response)
+	if err != nil {
+		return err
+	}
+
+	items, err := d.TryGetFieldByName("items")
+	if err != nil {
+		return err
 	}
 
 	outputFormat := CharReplacer.Replace(options.Format)
@@ -105,10 +128,25 @@ func (options *DeviceList) Execute(args []string) error {
 		outputFormat = "{{.Id}}"
 	}
 
+	data := make([]DeviceListOutput, len(items.([]interface{})))
+
+	for i, item := range items.([]interface{}) {
+		val := item.(*dynamic.Message)
+		data[i].Id = val.GetFieldByName("id").(string)
+		data[i].Type = val.GetFieldByName("type").(string)
+		data[i].Root = val.GetFieldByName("root").(bool)
+		data[i].ParentId = val.GetFieldByName("parent_id").(string)
+		data[i].SerialNumber = val.GetFieldByName("serial_number").(string)
+		data[i].Vlan = val.GetFieldByName("vlan").(uint32)
+		data[i].AdminState = GetEnumValue(val, "admin_state")
+		data[i].OperStatus = GetEnumValue(val, "oper_status")
+		data[i].ConnectStatus = GetEnumValue(val, "connect_status")
+	}
+
 	result := CommandResult{
 		Format:   format.Format(outputFormat),
 		OutputAs: toOutputType(options.OutputAs),
-		Data:     adapters.Items,
+		Data:     data,
 	}
 
 	GenerateOutput(&result)
@@ -117,23 +155,16 @@ func (options *DeviceList) Execute(args []string) error {
 
 func (options *DeviceCreate) Execute(args []string) error {
 
-	device := voltha.Device{}
-
+	dm := make(map[string]interface{})
 	if options.HostAndPort != "" {
-		device.Address = &voltha.Device_HostAndPort{
-			HostAndPort: options.HostAndPort,
-		}
+		dm["host_and_port"] = options.HostAndPort
 	} else if options.IPAddress != "" {
-		device.Address = &voltha.Device_Ipv4Address{
-			Ipv4Address: options.IPAddress,
-		}
+		dm["ipv4_address"] = options.IPAddress
 	} else if options.MACAddress != "" {
-		device.Address = &voltha.Device_MacAddress{
-			MacAddress: strings.ToLower(options.MACAddress),
-		}
+		dm["mac_address"] = strings.ToLower(options.MACAddress)
 	}
 	if options.DeviceType != "" {
-		device.Type = options.DeviceType
+		dm["type"] = options.DeviceType
 	}
 
 	conn, err := NewConnection()
@@ -142,23 +173,29 @@ func (options *DeviceCreate) Execute(args []string) error {
 	}
 	defer conn.Close()
 
-	client := voltha.NewVolthaGlobalServiceClient(conn)
-
-	ctx, cancel := context.WithTimeout(context.Background(), GlobalConfig.Grpc.Timeout)
-	defer cancel()
-
-	got, err := client.CreateDevice(ctx, &device)
+	descriptor, method, err := GetMethod("device-create")
 	if err != nil {
 		return err
 	}
 
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
+	ctx, cancel := context.WithTimeout(context.Background(), GlobalConfig.Grpc.Timeout)
+	defer cancel()
+
+	h := &RpcEventHandler{
+		Fields: map[string]map[string]interface{}{"voltha.Device": dm},
+	}
+	err = grpcurl.InvokeRPC(ctx, descriptor, conn, method, []string{}, h, h.GetParams)
+	if err != nil {
+		return err
+	} else if h.Status != nil && h.Status.Err() != nil {
+		return h.Status.Err()
 	}
 
-	fmt.Println(got.Id)
+	resp, err := dynamic.AsDynamicMessage(h.Response)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s\n", resp.GetFieldByName("id").(string))
 
 	return nil
 }
@@ -170,28 +207,29 @@ func (options *DeviceDelete) Execute(args []string) error {
 		return err
 	}
 	defer conn.Close()
-	client := voltha.NewVolthaGlobalServiceClient(conn)
+
+	descriptor, method, err := GetMethod("device-delete")
+	if err != nil {
+		return err
+	}
 
 	for _, i := range options.Args.Ids {
-		id := common.ID{
-			Id: i,
-		}
 
+		h := &RpcEventHandler{
+			Fields: map[string]map[string]interface{}{"voltha.ID": {"id": i}},
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), GlobalConfig.Grpc.Timeout)
 		defer cancel()
 
-		_, err := client.DeleteDevice(ctx, &id)
+		err = grpcurl.InvokeRPC(ctx, descriptor, conn, method, []string{}, h, h.GetParams)
 		if err != nil {
 			fmt.Printf("Error while deleting '%s': %s\n", i, err)
 			continue
+		} else if h.Status != nil && h.Status.Err() != nil {
+			fmt.Printf("Error while deleting '%s': %s\n", i, h.Status.Err())
+			continue
 		}
-
-		select {
-		case <-ctx.Done():
-			fmt.Printf("Error while deleting '%s': %s\n", i, ctx.Err())
-		default:
-			fmt.Println(i)
-		}
+		fmt.Printf("%s\n", i)
 	}
 
 	return nil
@@ -203,28 +241,28 @@ func (options *DeviceEnable) Execute(args []string) error {
 		return err
 	}
 	defer conn.Close()
-	client := voltha.NewVolthaGlobalServiceClient(conn)
+
+	descriptor, method, err := GetMethod("device-enable")
+	if err != nil {
+		return err
+	}
 
 	for _, i := range options.Args.Ids {
-		id := common.ID{
-			Id: i,
+		h := &RpcEventHandler{
+			Fields: map[string]map[string]interface{}{"voltha.ID": {"id": i}},
 		}
-
 		ctx, cancel := context.WithTimeout(context.Background(), GlobalConfig.Grpc.Timeout)
 		defer cancel()
 
-		_, err := client.EnableDevice(ctx, &id)
+		err = grpcurl.InvokeRPC(ctx, descriptor, conn, method, []string{}, h, h.GetParams)
 		if err != nil {
 			fmt.Printf("Error while enabling '%s': %s\n", i, err)
 			continue
+		} else if h.Status != nil && h.Status.Err() != nil {
+			fmt.Printf("Error while enabling '%s': %s\n", i, h.Status.Err())
+			continue
 		}
-
-		select {
-		case <-ctx.Done():
-			fmt.Printf("Error while enabling '%s': %s\n", i, ctx.Err())
-		default:
-			fmt.Println(i)
-		}
+		fmt.Printf("%s\n", i)
 	}
 
 	return nil
@@ -236,28 +274,28 @@ func (options *DeviceDisable) Execute(args []string) error {
 		return err
 	}
 	defer conn.Close()
-	client := voltha.NewVolthaGlobalServiceClient(conn)
+
+	descriptor, method, err := GetMethod("device-disable")
+	if err != nil {
+		return err
+	}
 
 	for _, i := range options.Args.Ids {
-		id := common.ID{
-			Id: i,
+		h := &RpcEventHandler{
+			Fields: map[string]map[string]interface{}{"voltha.ID": {"id": i}},
 		}
-
 		ctx, cancel := context.WithTimeout(context.Background(), GlobalConfig.Grpc.Timeout)
 		defer cancel()
 
-		_, err := client.DisableDevice(ctx, &id)
+		err = grpcurl.InvokeRPC(ctx, descriptor, conn, method, []string{}, h, h.GetParams)
 		if err != nil {
 			fmt.Printf("Error while disabling '%s': %s\n", i, err)
 			continue
+		} else if h.Status != nil && h.Status.Err() != nil {
+			fmt.Printf("Error while disabling '%s': %s\n", i, h.Status.Err())
+			continue
 		}
-
-		select {
-		case <-ctx.Done():
-			fmt.Printf("Error while disabling '%s': %s\n", i, ctx.Err())
-		default:
-			fmt.Println(i)
-		}
+		fmt.Printf("%s\n", i)
 	}
 
 	return nil

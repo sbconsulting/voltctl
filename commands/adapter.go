@@ -16,12 +16,11 @@
 package commands
 
 import (
-	"github.com/golang/protobuf/ptypes/empty"
-
 	"context"
 	"github.com/ciena/voltctl/format"
+	"github.com/fullstorydev/grpcurl"
 	flags "github.com/jessevdk/go-flags"
-	"github.com/opencord/voltha/protos/go/voltha"
+	"github.com/jhump/protoreflect/dynamic"
 )
 
 const (
@@ -34,6 +33,13 @@ type AdapterList struct {
 
 type AdapterOpts struct {
 	List AdapterList `command:"list"`
+}
+
+type AdapterOutput struct {
+	Id       string
+	Vendor   string
+	Version  string
+	LogLevel string
 }
 
 var adapterOpts = AdapterOpts{}
@@ -49,34 +55,57 @@ func (options *AdapterList) Execute(args []string) error {
 	}
 	defer conn.Close()
 
-	client := voltha.NewVolthaGlobalServiceClient(conn)
-
-	ctx, cancel := context.WithTimeout(context.Background(), GlobalConfig.Grpc.Timeout)
-	defer cancel()
-
-	adapters, err := client.ListAdapters(ctx, &empty.Empty{})
+	descriptor, method, err := GetMethod("adapter-list")
 	if err != nil {
 		return err
 	}
 
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
+	ctx, cancel := context.WithTimeout(context.Background(), GlobalConfig.Grpc.Timeout)
+	defer cancel()
+
+	h := &RpcEventHandler{}
+	err = grpcurl.InvokeRPC(ctx, descriptor, conn, method, []string{}, h, h.GetParams)
+	if err != nil {
+		return err
+	}
+
+	if h.Status != nil && h.Status.Err() != nil {
+		return h.Status.Err()
+	}
+
+	d, err := dynamic.AsDynamicMessage(h.Response)
+	if err != nil {
+		return err
+	}
+	items, err := d.TryGetFieldByName("items")
+	if err != nil {
+		return err
 	}
 
 	outputFormat := CharReplacer.Replace(options.Format)
 	if outputFormat == "" {
 		outputFormat = DEFAULT_OUTPUT_FORMAT
 	}
+
 	if options.Quiet {
 		outputFormat = "{{.Id}}"
+	}
+
+	data := make([]AdapterOutput, len(items.([]interface{})))
+
+	for i, item := range items.([]interface{}) {
+		val := item.(*dynamic.Message)
+		data[i].Id = val.GetFieldByName("id").(string)
+		data[i].Vendor = val.GetFieldByName("vendor").(string)
+		data[i].Version = val.GetFieldByName("version").(string)
+		config := val.GetFieldByName("config")
+		data[i].LogLevel = GetEnumValue(config.(*dynamic.Message), "log_level")
 	}
 
 	result := CommandResult{
 		Format:   format.Format(outputFormat),
 		OutputAs: toOutputType(options.OutputAs),
-		Data:     adapters.Items,
+		Data:     data,
 	}
 	GenerateOutput(&result)
 

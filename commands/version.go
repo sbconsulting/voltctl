@@ -16,12 +16,11 @@
 package commands
 
 import (
-	"github.com/golang/protobuf/ptypes/empty"
-
 	"context"
 	"github.com/ciena/voltctl/format"
+	"github.com/fullstorydev/grpcurl"
 	flags "github.com/jessevdk/go-flags"
-	"github.com/opencord/voltha/protos/go/voltha"
+	"github.com/jhump/protoreflect/dynamic"
 	"strings"
 )
 
@@ -46,30 +45,39 @@ func (options *VersionOpts) Execute(args []string) error {
 		return err
 	}
 	defer conn.Close()
-
-	client := voltha.NewVolthaGlobalServiceClient(conn)
-
-	ctx, cancel := context.WithTimeout(context.Background(), GlobalConfig.Grpc.Timeout)
-	defer cancel()
-
-	got, err := client.GetVoltha(ctx, &empty.Empty{})
+	descriptor, method, err := GetMethod("version")
 	if err != nil {
 		return err
 	}
 
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
+	ctx, cancel := context.WithTimeout(context.Background(), GlobalConfig.Grpc.Timeout)
+	defer cancel()
+
+	h := &RpcEventHandler{}
+	err = grpcurl.InvokeRPC(ctx, descriptor, conn, method, []string{}, h, h.GetParams)
+	if err != nil {
+		return err
+	}
+
+	if h.Status != nil && h.Status.Err() != nil {
+		return h.Status.Err()
+	}
+
+	d, err := dynamic.AsDynamicMessage(h.Response)
+	if err != nil {
+		return err
+	}
+	version, err := d.TryGetFieldByName("version")
+	if err != nil {
+		return err
 	}
 
 	result := CommandResult{
 		Format:   format.Format("Client Version: {{.Client}}\nCluster Version: {{.Cluster}}"),
 		OutputAs: toOutputType(options.OutputAs),
-		Data:     VersionOutput{Client: "beta", Cluster: strings.ReplaceAll(got.Version, "\n", "")},
+		Data:     VersionOutput{Client: "beta", Cluster: strings.ReplaceAll(version.(string), "\n", "")},
 	}
 
 	GenerateOutput(&result)
-
 	return nil
 }

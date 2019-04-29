@@ -54,14 +54,15 @@ var GlobalConfig struct {
 }
 
 var GlobalOptions struct {
-	Config string `short:"c" long:"config" env:"VOLTCONFIG" value-name:"FILE" default:"" description:"Location of client config file"`
-	Server string `short:"s" long:"server" default:"" value-name:"SERVER:PORT" description:"IP/Host and port of VOLTHA"`
-	Debug  bool   `short:"d" long:"debug" description:"Enable debug mode"`
-	UseTLS bool   `long:"tls" description:"Use TLS"`
-	CACert string `long:"tlscacert" value-name:"CA_CERT_FILE" description:"Trust certs signed only by this CA"`
-	Cert   string `long:"tlscert" value-name:"CERT_FILE" description:"Path to TLS vertificate file"`
-	Key    string `long:"tlskey" value-name:"KEY_FILE" description:"Path to TLS key file"`
-	Verify bool   `long:"tlsverify" description:"Use TLS and verify the remote"`
+	Config     string `short:"c" long:"config" env:"VOLTCONFIG" value-name:"FILE" default:"" description:"Location of client config file"`
+	Server     string `short:"s" long:"server" default:"" value-name:"SERVER:PORT" description:"IP/Host and port of VOLTHA"`
+	ApiVersion string `short:"a" long:"apiversion" description:"API version" value-name:"VERSION" choice:"v1" choice:"v2"`
+	Debug      bool   `short:"d" long:"debug" description:"Enable debug mode"`
+	UseTLS     bool   `long:"tls" description:"Use TLS"`
+	CACert     string `long:"tlscacert" value-name:"CA_CERT_FILE" description:"Trust certs signed only by this CA"`
+	Cert       string `long:"tlscert" value-name:"CERT_FILE" description:"Path to TLS vertificate file"`
+	Key        string `long:"tlskey" value-name:"KEY_FILE" description:"Path to TLS key file"`
+	Verify     bool   `long:"tlsverify" description:"Use TLS and verify the remote"`
 }
 
 type OutputOptions struct {
@@ -115,6 +116,9 @@ func NewConnection() (*grpc.ClientConn, error) {
 	// Override from command line
 	if GlobalOptions.Server != "" {
 		GlobalConfig.Server = GlobalOptions.Server
+	}
+	if GlobalOptions.ApiVersion != "" {
+		GlobalConfig.ApiVersion = GlobalOptions.ApiVersion
 	}
 
 	return grpc.Dial(GlobalConfig.Server, grpc.WithInsecure())
