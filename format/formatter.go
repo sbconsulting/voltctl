@@ -33,7 +33,7 @@ func (f Format) IsTable() bool {
 	return strings.HasPrefix(string(f), "table")
 }
 
-func (f Format) Execute(writer io.Writer, withHeaders bool, data interface{}) {
+func (f Format) Execute(writer io.Writer, withHeaders bool, data interface{}) error {
 	var tabWriter *tabwriter.Writer = nil
 	format := f
 
@@ -44,7 +44,7 @@ func (f Format) Execute(writer io.Writer, withHeaders bool, data interface{}) {
 
 	tmpl, err := template.New("output").Parse(string(format))
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	if f.IsTable() && withHeaders {
@@ -76,7 +76,7 @@ func (f Format) Execute(writer io.Writer, withHeaders bool, data interface{}) {
 			tabWriter.Write([]byte("\n"))
 		}
 		tabWriter.Flush()
-		return
+		return nil
 	}
 
 	slice := reflect.ValueOf(data)
@@ -89,8 +89,6 @@ func (f Format) Execute(writer io.Writer, withHeaders bool, data interface{}) {
 		tmpl.Execute(writer, data)
 		writer.Write([]byte("\n"))
 	}
+	return nil
 
-}
-
-func (f Format) ExtractHeader() {
 }
