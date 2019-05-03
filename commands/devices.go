@@ -216,7 +216,7 @@ func (options *DeviceDelete) Execute(args []string) error {
 	for _, i := range options.Args.Ids {
 
 		h := &RpcEventHandler{
-			Fields: map[string]map[string]interface{}{"voltha.ID": {"id": i}},
+			Fields: map[string]map[string]interface{}{ParamNames[GlobalConfig.ApiVersion]["ID"]: {"id": i}},
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), GlobalConfig.Grpc.Timeout)
 		defer cancel()
@@ -249,7 +249,7 @@ func (options *DeviceEnable) Execute(args []string) error {
 
 	for _, i := range options.Args.Ids {
 		h := &RpcEventHandler{
-			Fields: map[string]map[string]interface{}{"voltha.ID": {"id": i}},
+			Fields: map[string]map[string]interface{}{ParamNames[GlobalConfig.ApiVersion]["ID"]: {"id": i}},
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), GlobalConfig.Grpc.Timeout)
 		defer cancel()
@@ -282,7 +282,7 @@ func (options *DeviceDisable) Execute(args []string) error {
 
 	for _, i := range options.Args.Ids {
 		h := &RpcEventHandler{
-			Fields: map[string]map[string]interface{}{"voltha.ID": {"id": i}},
+			Fields: map[string]map[string]interface{}{ParamNames[GlobalConfig.ApiVersion]["ID"]: {"id": i}},
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), GlobalConfig.Grpc.Timeout)
 		defer cancel()
