@@ -27,7 +27,7 @@ GITCOMMIT=$(shell git log --pretty=format:"%h" -n 1)
 GOVERSION=$(shell go version 2>&1 | sed -E  's/.*(go[0-9]+\.[0-9]+\.[0-9]+).*/\1/g')
 OSTYPE=$(shell uname -s | tr A-Z a-z)
 OSARCH=$(shell uname -p | tr A-Z a-z)
-BUILDTIME=$(shell date -u)
+BUILDTIME=$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 LDFLAGS=-ldflags \
 	'-X "github.com/ciena/voltctl/cli/version.Version=$(VERSION)"  \
