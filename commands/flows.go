@@ -72,7 +72,7 @@ func (options *FlowList) Execute(args []string) error {
 	defer cancel()
 
 	h := &RpcEventHandler{
-		Fields: map[string]map[string]interface{}{"voltha.ID": {"id": options.Args.Id}},
+		Fields: map[string]map[string]interface{}{ParamNames[GlobalConfig.ApiVersion]["ID"]: {"id": options.Args.Id}},
 	}
 	err = grpcurl.InvokeRPC(ctx, descriptor, conn, method, []string{}, h, h.GetParams)
 	if err != nil {

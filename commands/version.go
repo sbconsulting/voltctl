@@ -17,6 +17,7 @@ package commands
 
 import (
 	"context"
+	"github.com/ciena/voltctl/cli/version"
 	"github.com/ciena/voltctl/format"
 	"github.com/fullstorydev/grpcurl"
 	flags "github.com/jessevdk/go-flags"
@@ -24,9 +25,18 @@ import (
 	"strings"
 )
 
+type VersionDetails struct {
+	Version   string `json:"version"`
+	GoVersion string `json:"goversion"`
+	GitCommit string `json:"gitcommit"`
+	BuildTime string `json:"buildtime"`
+	Os        string `json:"os"`
+	Arch      string `json:"arch"`
+}
+
 type VersionOutput struct {
-	Client  string `json:"client"`
-	Cluster string `json:"cluster"`
+	Client  VersionDetails `json:"client"`
+	Cluster VersionDetails `json:"cluster"`
 }
 
 type VersionOpts struct {
@@ -35,9 +45,43 @@ type VersionOpts struct {
 
 var versionOpts = VersionOpts{}
 
+var versionInfo = VersionOutput{
+	Client: VersionDetails{
+		Version:   version.Version,
+		GoVersion: version.GoVersion,
+		GitCommit: version.GitCommit,
+		Os:        version.Os,
+		Arch:      version.Arch,
+		BuildTime: version.BuildTime,
+	},
+	Cluster: VersionDetails{
+		Version:   "unknown-version",
+		GoVersion: "unknown-goversion",
+		GitCommit: "unknown-gitcommit",
+		Os:        "unknown-os",
+		Arch:      "unknown-arch",
+		BuildTime: "unknown-buildtime",
+	},
+}
+
 func RegisterVersionCommands(parent *flags.Parser) {
 	parent.AddCommand("version", "display version", "Display client and server version", &versionOpts)
 }
+
+const DefaultFormat = `Client:
+ Version        {{.Client.Version}}
+ Go version:    {{.Client.GoVersion}}
+ Git commit:    {{.Client.GitCommit}}
+ Built:         {{.Client.BuildTime}}
+ OS/Arch:       {{.Client.Os}}/{{.Client.Arch}}
+
+Cluster:
+ Version        {{.Cluster.Version}}
+ Go version:    {{.Cluster.GoVersion}}
+ Git commit:    {{.Cluster.GitCommit}}
+ Built:         {{.Cluster.BuildTime}}
+ OS/Arch:       {{.Cluster.Os}}/{{.Cluster.Arch}}
+`
 
 func (options *VersionOpts) Execute(args []string) error {
 	conn, err := NewConnection()
@@ -72,10 +116,12 @@ func (options *VersionOpts) Execute(args []string) error {
 		return err
 	}
 
+	versionInfo.Cluster.Version = strings.ReplaceAll(version.(string), "\n", "")
+
 	result := CommandResult{
-		Format:   format.Format("Client Version: {{.Client}}\nCluster Version: {{.Cluster}}"),
+		Format:   format.Format(DefaultFormat),
 		OutputAs: toOutputType(options.OutputAs),
-		Data:     VersionOutput{Client: "beta", Cluster: strings.ReplaceAll(version.(string), "\n", "")},
+		Data:     versionInfo,
 	}
 
 	GenerateOutput(&result)
