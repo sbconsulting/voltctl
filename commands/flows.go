@@ -17,7 +17,6 @@ package commands
 
 import (
 	"context"
-	_ "encoding/json"
 	"fmt"
 	"github.com/ciena/voltctl/format"
 	"github.com/fullstorydev/grpcurl"
@@ -36,55 +35,73 @@ type FlowList struct {
 
 type FlowOpts struct {
 	List FlowList `command:"list"`
-
-	parser *flags.Parser
 }
 
+/*
+ * This is a partial list of OF match/action values. This list will be
+ * expanded as new fields are needed within VOLTHA
+ *
+ * Strings are used in the output structure so that on output the table
+ * can be "sparsely" populated with "empty" cells as opposed to 0 (zeros)
+ * all over the place.
+ */
 type FlowOutput struct {
-	Id         string `json:"id"`
-	TableId    uint32 `json:"tableid"`
-	Priority   uint32 `json:"priority"`
-	Cookie     string `json:"cookie"`
-	InPort     string `json:"inport,omitempty"`
-	EthType    string `json:"ethtype,omitempty"`
-	VlanId     string `json:"vlanid,omitempty"`
-	IpProto    string `json:"ipproto,omitempty"`
-	UdpSrc     string `json:"udpsrc,omitempty"`
-	UdpDst     string `json:"dstsrc,omitempty"`
-	Metadata   string `json:"metadata,omitempty"`
-	SetVlanId  string `json:"setvlanid,omitempty"`
-	PopVlan    string `json:"popvlan,omitempty"`
-	PushVlanId string `json:"pushvlanid,omitempty"`
-	Output     string `json:"output,omitempty"`
-}
-
-var flowOpts = FlowOpts{}
-
-func RegisterFlowCommands(parent *flags.Parser) {
-	parent.AddCommand("flow", "flow commands", "Commands to query and manipulate VOLTHA flows", &flowOpts)
-	flowOpts.parser = parent
+	Id                     string `json:"id"`
+	TableId                uint32 `json:"tableid"`
+	Priority               uint32 `json:"priority"`
+	Cookie                 string `json:"cookie"`
+	UnsupportedMatch       string `json:"unsupportedmatch,omitempty"`
+	InPort                 string `json:"inport,omitempty"`
+	EthType                string `json:"ethtype,omitempty"`
+	VlanId                 string `json:"vlanid,omitempty"`
+	IpProto                string `json:"ipproto,omitempty"`
+	UdpSrc                 string `json:"udpsrc,omitempty"`
+	UdpDst                 string `json:"dstsrc,omitempty"`
+	Metadata               string `json:"metadata,omitempty"`
+	UnsupportedInstruction string `json:"unsupportedinstruction,omitempty"`
+	UnsupportedAction      string `json:"unsupportedaction,omitempty"`
+	UnsupportedSetField    string `json:"unsupportedsetfield,omitempty"`
+	SetVlanId              string `json:"setvlanid,omitempty"`
+	PopVlan                string `json:"popvlan,omitempty"`
+	PushVlanId             string `json:"pushvlanid,omitempty"`
+	Output                 string `json:"output,omitempty"`
 }
 
 var (
-	SORT_ORDER = map[string]byte{
-		"Id":         0,
-		"TableId":    1,
-		"Priority":   2,
-		"Cookie":     3,
-		"InPort":     4,
-		"EthType":    5,
-		"VlanId":     6,
-		"IpProto":    7,
-		"UdpSrc":     8,
-		"UdpDst":     9,
-		"Metadata":   10,
-		"SetVlanId":  11,
-		"PopVlan":    12,
-		"PushVlanId": 13,
-		"Output":     100,
+	flowOpts = FlowOpts{}
+
+	// Used to sort the table colums in a consistent order
+	SORT_ORDER = map[string]uint16{
+		"Id":                     0,
+		"TableId":                10,
+		"Priority":               20,
+		"Cookie":                 30,
+		"UnsupportedMatch":       35,
+		"InPort":                 40,
+		"EthType":                50,
+		"VlanId":                 60,
+		"IpProto":                70,
+		"UdpSrc":                 80,
+		"UdpDst":                 90,
+		"Metadata":               100,
+		"UnsupportedInstruction": 102,
+		"UnsupportedAction":      105,
+		"UnsupportedSetField":    107,
+		"SetVlanId":              110,
+		"PopVlan":                120,
+		"PushVlanId":             130,
+		"Output":                 1000,
 	}
 )
 
+func RegisterFlowCommands(parent *flags.Parser) {
+	parent.AddCommand("flow", "flow commands", "Commands to query and manipulate VOLTHA flows", &flowOpts)
+}
+
+/*
+ * Construct a template format string based on the fields required by the
+ * results.
+ */
 func buildOutputFormat(fields map[string]byte) string {
 	keys := make([]string, len(fields))
 	i := 0
@@ -108,6 +125,22 @@ func buildOutputFormat(fields map[string]byte) string {
 		b.WriteString("}}")
 	}
 	return b.String()
+}
+
+func toVlanId(vid uint32) string {
+	if vid == 0 {
+		return "untagged"
+	} else if vid&0x1000 > 0 {
+		return fmt.Sprintf("%d", vid-4096)
+	}
+	return fmt.Sprintf("%d", vid)
+}
+
+func appendValue(base string, val int32) string {
+	if len(base) > 0 {
+		return fmt.Sprintf("%s,%d", base, val)
+	}
+	return fmt.Sprintf("%d", val)
 }
 
 func (options *FlowList) Execute(args []string) error {
@@ -148,6 +181,7 @@ func (options *FlowList) Execute(args []string) error {
 		return err
 	}
 
+	// Always include Id, TableId, Priority, and Cookie in output
 	outFields := map[string]byte{
 		"Id":       0,
 		"TableId":  0,
@@ -155,8 +189,8 @@ func (options *FlowList) Execute(args []string) error {
 		"Cookie":   0,
 	}
 
+	// Walk the flows and populate the output table
 	data := make([]FlowOutput, len(items.([]interface{})))
-
 	for i, item := range items.([]interface{}) {
 		val := item.(*dynamic.Message)
 		data[i].Id = fmt.Sprintf("%0x", val.GetFieldByName("id").(uint64))
@@ -180,7 +214,6 @@ func (options *FlowList) Execute(args []string) error {
 			}
 
 			basic := f.GetFieldByName("ofb_field").(*dynamic.Message)
-
 			switch basic.GetFieldByName("type").(int32) {
 			case 0: // IN_PORT
 				outFields["InPort"] = 0
@@ -193,12 +226,7 @@ func (options *FlowList) Execute(args []string) error {
 				data[i].EthType = fmt.Sprintf("0x%04x", basic.GetFieldByName("eth_type").(uint32))
 			case 6: // VLAN_ID
 				outFields["VlanId"] = 0
-				vid := basic.GetFieldByName("vlan_vid").(uint32)
-				if vid == 0 {
-					data[i].VlanId = "untagged"
-				} else if vid&0x1000 > 0 {
-					data[i].VlanId = fmt.Sprintf("%d", vid-4096)
-				}
+				data[i].VlanId = toVlanId(basic.GetFieldByName("vlan_vid").(uint32))
 			case 10: // IP_PROTO
 				outFields["IpProto"] = 0
 				data[i].IpProto = fmt.Sprintf("%d", basic.GetFieldByName("ip_proto").(uint32))
@@ -209,7 +237,14 @@ func (options *FlowList) Execute(args []string) error {
 				outFields["UdpDst"] = 0
 				data[i].UdpDst = fmt.Sprintf("%d", basic.GetFieldByName("udp_dst").(uint32))
 			default:
-				fmt.Printf("Unsupported match type: %d\n", basic.GetFieldByName("type").(int32))
+				/*
+				 * For unsupported match types put them into an
+				 * "Unsupported field so the table/json still
+				 * outputs relatively correctly as opposed to
+				 * having log messages.
+				 */
+				outFields["UnsupportedMatch"] = 0
+				data[i].UnsupportedMatch = appendValue(data[i].UnsupportedMatch, basic.GetFieldByName("type").(int32))
 			}
 		}
 		for _, instruction := range val.GetFieldByName("instructions").([]interface{}) {
@@ -254,32 +289,51 @@ func (options *FlowList) Execute(args []string) error {
 						outFields["PopVlan"] = 0
 						data[i].PopVlan = "yes"
 					case 25: // SET_FIELD
-
 						set := a.GetFieldByName("set_field").(*dynamic.Message).GetFieldByName("field").(*dynamic.Message)
+
+						// Only support OFPXMC_OPENFLOW_BASIC (0x8000)
 						if set.GetFieldByName("oxm_class").(int32) != 0x8000 {
 							continue
 						}
-
 						basic := set.GetFieldByName("ofb_field").(*dynamic.Message)
 
 						switch basic.GetFieldByName("type").(int32) {
 						case 6: // VLAN_ID
 							outFields["SetVlanId"] = 0
-							vid := basic.GetFieldByName("vlan_vid").(uint32)
-							if vid == 0 {
-								data[i].SetVlanId = "untagged"
-							} else if vid&0x1000 > 0 {
-								data[i].SetVlanId = fmt.Sprintf("%d", vid-4096)
-							}
-						default:
-							fmt.Printf("Unsupported SET_FIELD type: %d\n", basic.GetFieldByName("type").(int32))
+							data[i].SetVlanId = toVlanId(basic.GetFieldByName("vlan_vid").(uint32))
+						default: // Unsupported
+							/*
+							 * For unsupported match types put them into an
+							 * "Unsupported field so the table/json still
+							 * outputs relatively correctly as opposed to
+							 * having log messages.
+							 */
+							outFields["UnsupportedSetField"] = 0
+							data[i].UnsupportedSetField = appendValue(data[i].UnsupportedSetField,
+								basic.GetFieldByName("type").(int32))
 						}
-
-					default:
-						fmt.Printf("Unsupporte ACTION TYPE: %d\n", a.GetFieldByName("type").(int32))
+					default: // Unsupported
+						/*
+						 * For unsupported match types put them into an
+						 * "Unsupported field so the table/json still
+						 * outputs relatively correctly as opposed to
+						 * having log messages.
+						 */
+						outFields["UnsupportedAction"] = 0
+						data[i].UnsupportedAction = appendValue(data[i].UnsupportedAction,
+							a.GetFieldByName("type").(int32))
 					}
 				}
-			default:
+			default: // Unsupported
+				/*
+				 * For unsupported match types put them into an
+				 * "Unsupported field so the table/json still
+				 * outputs relatively correctly as opposed to
+				 * having log messages.
+				 */
+				outFields["UnsupportedInstruction"] = 0
+				data[i].UnsupportedInstruction = appendValue(data[i].UnsupportedInstruction,
+					inst.GetFieldByName("type").(int32))
 			}
 		}
 	}
