@@ -22,6 +22,7 @@ import (
 	"github.com/fullstorydev/grpcurl"
 	flags "github.com/jessevdk/go-flags"
 	"github.com/jhump/protoreflect/dynamic"
+	"google.golang.org/grpc/codes"
 	"sort"
 	"strings"
 )
@@ -65,6 +66,7 @@ type FlowOutput struct {
 	PopVlan                string `json:"popvlan,omitempty"`
 	PushVlanId             string `json:"pushvlanid,omitempty"`
 	Output                 string `json:"output,omitempty"`
+	GotoTable              string `json:"gototable,omitempty"`
 }
 
 var (
@@ -91,6 +93,7 @@ var (
 		"PopVlan":                120,
 		"PushVlanId":             130,
 		"Output":                 1000,
+		"GotoTable":              1010,
 	}
 )
 
@@ -136,7 +139,14 @@ func toVlanId(vid uint32) string {
 	return fmt.Sprintf("%d", vid)
 }
 
-func appendValue(base string, val int32) string {
+func appendInt32(base string, val int32) string {
+	if len(base) > 0 {
+		return fmt.Sprintf("%s,%d", base, val)
+	}
+	return fmt.Sprintf("%d", val)
+}
+
+func appendUint32(base string, val uint32) string {
 	if len(base) > 0 {
 		return fmt.Sprintf("%s,%d", base, val)
 	}
@@ -168,7 +178,29 @@ func (options *FlowList) Execute(args []string) error {
 	err = grpcurl.InvokeRPC(ctx, descriptor, conn, method, []string{}, h, h.GetParams)
 	if err != nil {
 		return err
-	} else if h.Status != nil && h.Status.Err() != nil {
+	} else if h.Status != nil {
+		if h.Status.Code() == codes.NotFound {
+			descriptor, method, err = GetMethod("logical-flow-list")
+			if err != nil {
+				return err
+			}
+
+			ctx, cancel = context.WithTimeout(context.Background(), GlobalConfig.Grpc.Timeout)
+			defer cancel()
+
+			h = &RpcEventHandler{
+				Fields: map[string]map[string]interface{}{ParamNames[GlobalConfig.ApiVersion]["ID"]: {"id": options.Args.Id}},
+			}
+			err = grpcurl.InvokeRPC(ctx, descriptor, conn, method, []string{}, h, h.GetParams)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	if h.Status != nil && h.Status.Err() != nil {
+		if h.Status.Code() == codes.NotFound {
+			return fmt.Errorf("Device not found: %s", options.Args.Id)
+		}
 		return h.Status.Err()
 	}
 
@@ -193,7 +225,7 @@ func (options *FlowList) Execute(args []string) error {
 	data := make([]FlowOutput, len(items.([]interface{})))
 	for i, item := range items.([]interface{}) {
 		val := item.(*dynamic.Message)
-		data[i].Id = fmt.Sprintf("%0x", val.GetFieldByName("id").(uint64))
+		data[i].Id = fmt.Sprintf("%016x", val.GetFieldByName("id").(uint64))
 		data[i].TableId = val.GetFieldByName("table_id").(uint32)
 		data[i].Priority = val.GetFieldByName("priority").(uint32)
 		// mask the lower 8 for the cookie, why?
@@ -244,12 +276,16 @@ func (options *FlowList) Execute(args []string) error {
 				 * having log messages.
 				 */
 				outFields["UnsupportedMatch"] = 0
-				data[i].UnsupportedMatch = appendValue(data[i].UnsupportedMatch, basic.GetFieldByName("type").(int32))
+				data[i].UnsupportedMatch = appendInt32(data[i].UnsupportedMatch, basic.GetFieldByName("type").(int32))
 			}
 		}
 		for _, instruction := range val.GetFieldByName("instructions").([]interface{}) {
 			inst := instruction.(*dynamic.Message)
 			switch inst.GetFieldByName("type").(uint32) {
+			case 1: // GOTO_TABLE
+				outFields["GotoTable"] = 0
+				goto_table := inst.GetFieldByName("goto_table").(*dynamic.Message)
+				data[i].GotoTable = fmt.Sprintf("%d", goto_table.GetFieldByName("table_id").(uint32))
 			case 4: // APPLY_ACTIONS
 				actions := inst.GetFieldByName("actions").(*dynamic.Message)
 				for _, action := range actions.GetFieldByName("actions").([]interface{}) {
@@ -309,7 +345,7 @@ func (options *FlowList) Execute(args []string) error {
 							 * having log messages.
 							 */
 							outFields["UnsupportedSetField"] = 0
-							data[i].UnsupportedSetField = appendValue(data[i].UnsupportedSetField,
+							data[i].UnsupportedSetField = appendInt32(data[i].UnsupportedSetField,
 								basic.GetFieldByName("type").(int32))
 						}
 					default: // Unsupported
@@ -320,7 +356,7 @@ func (options *FlowList) Execute(args []string) error {
 						 * having log messages.
 						 */
 						outFields["UnsupportedAction"] = 0
-						data[i].UnsupportedAction = appendValue(data[i].UnsupportedAction,
+						data[i].UnsupportedAction = appendInt32(data[i].UnsupportedAction,
 							a.GetFieldByName("type").(int32))
 					}
 				}
@@ -332,8 +368,8 @@ func (options *FlowList) Execute(args []string) error {
 				 * having log messages.
 				 */
 				outFields["UnsupportedInstruction"] = 0
-				data[i].UnsupportedInstruction = appendValue(data[i].UnsupportedInstruction,
-					inst.GetFieldByName("type").(int32))
+				data[i].UnsupportedInstruction = appendUint32(data[i].UnsupportedInstruction,
+					inst.GetFieldByName("type").(uint32))
 			}
 		}
 	}

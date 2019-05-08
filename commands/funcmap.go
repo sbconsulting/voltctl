@@ -95,6 +95,10 @@ var functionMap = map[string]map[string]string{
 		"v1": "voltha.VolthaGlobalService/ListDeviceFlows",
 		"v2": "voltha.VolthaService/ListDeviceFlows",
 	},
+	"logical-flow-list": {
+		"v1": "voltha.VolthaGlobalService/ListLogicalDeviceFlows",
+		"v2": "voltha.VolthaService/ListLogicalDeviceFlows",
+	},
 }
 
 func GetMethod(name string) (grpcurl.DescriptorSource, string, error) {
