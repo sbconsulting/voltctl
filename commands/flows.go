@@ -17,6 +17,7 @@ package commands
 
 import (
 	"context"
+	_ "encoding/json"
 	"fmt"
 	"github.com/ciena/voltctl/format"
 	"github.com/fullstorydev/grpcurl"
@@ -24,10 +25,6 @@ import (
 	"github.com/jhump/protoreflect/dynamic"
 	"sort"
 	"strings"
-)
-
-const (
-	DEFAULT_FLOW_OUTPUT_FORMAT = "table{{.Id}}\t{{.TableId}}\t{{.Priority}}\t{{.Cookie}}\t{{.InPort}}\t{{.EthType}}\t{{.IpProto}}\t{{.UdpSrc}}\t{{.UdpDst}}\t{{.Output}}"
 )
 
 type FlowList struct {
@@ -44,21 +41,21 @@ type FlowOpts struct {
 }
 
 type FlowOutput struct {
-	Id         string
-	TableId    uint32
-	Priority   uint32
-	Cookie     string
-	InPort     string
-	EthType    string
-	VlanId     string
-	IpProto    string
-	UdpSrc     string
-	UdpDst     string
-	Metadata   string
-	SetVlanId  string
-	PopVlan    string
-	PushVlanId string
-	Output     string
+	Id         string `json:"id"`
+	TableId    uint32 `json:"tableid"`
+	Priority   uint32 `json:"priority"`
+	Cookie     string `json:"cookie"`
+	InPort     string `json:"inport,omitempty"`
+	EthType    string `json:"ethtype,omitempty"`
+	VlanId     string `json:"vlanid,omitempty"`
+	IpProto    string `json:"ipproto,omitempty"`
+	UdpSrc     string `json:"udpsrc,omitempty"`
+	UdpDst     string `json:"dstsrc,omitempty"`
+	Metadata   string `json:"metadata,omitempty"`
+	SetVlanId  string `json:"setvlanid,omitempty"`
+	PopVlan    string `json:"popvlan,omitempty"`
+	PushVlanId string `json:"pushvlanid,omitempty"`
+	Output     string `json:"output,omitempty"`
 }
 
 var flowOpts = FlowOpts{}
