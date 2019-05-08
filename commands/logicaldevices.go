@@ -46,6 +46,10 @@ type LogicalDeviceListOutput struct {
 	} `json:"features"`
 }
 
+type LogicalDeviceFlowList struct {
+	FlowList
+}
+
 type LogicalDevicePortList struct {
 	OutputOptions
 	Args struct {
@@ -79,6 +83,7 @@ type LogicalDevicePortOutput struct {
 
 type LogicalDeviceOpts struct {
 	List  LogicalDeviceList     `command:"list"`
+	Flows LogicalDeviceFlowList `command:"flows"`
 	Ports LogicalDevicePortList `command:"ports"`
 }
 
@@ -245,4 +250,12 @@ func (options *LogicalDevicePortList) Execute(args []string) error {
 
 	GenerateOutput(&result)
 	return nil
+}
+
+func (options *LogicalDeviceFlowList) Execute(args []string) error {
+	fl := &FlowList{}
+	fl.OutputOptions = options.OutputOptions
+	fl.Args = options.Args
+	fl.Method = "logical-device-flow-list"
+	return fl.Execute(args)
 }

@@ -20,9 +20,7 @@ import (
 	"fmt"
 	"github.com/ciena/voltctl/format"
 	"github.com/fullstorydev/grpcurl"
-	flags "github.com/jessevdk/go-flags"
 	"github.com/jhump/protoreflect/dynamic"
-	"google.golang.org/grpc/codes"
 	"sort"
 	"strings"
 )
@@ -32,6 +30,8 @@ type FlowList struct {
 	Args struct {
 		Id string `positional-arg-name:"DEVICE_ID" required:"yes"`
 	} `positional-args:"yes"`
+
+	Method string
 }
 
 type FlowOpts struct {
@@ -97,10 +97,6 @@ var (
 	}
 )
 
-func RegisterFlowCommands(parent *flags.Parser) {
-	parent.AddCommand("flow", "flow commands", "Commands to query and manipulate VOLTHA flows", &flowOpts)
-}
-
 /*
  * Construct a template format string based on the fields required by the
  * results.
@@ -154,17 +150,20 @@ func appendUint32(base string, val uint32) string {
 }
 
 func (options *FlowList) Execute(args []string) error {
-
-	if len(args) > 0 {
-		return fmt.Errorf("only a single argument 'DEVICE_ID' can be provided")
-	}
 	conn, err := NewConnection()
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
 
-	descriptor, method, err := GetMethod("flow-list")
+	switch options.Method {
+	case "device-flow-list":
+	case "logical-device-flow-list":
+	default:
+		panic(fmt.Errorf("Unknown method name: '%s'", options.Method))
+	}
+
+	descriptor, method, err := GetMethod(options.Method)
 	if err != nil {
 		return err
 	}
@@ -178,29 +177,7 @@ func (options *FlowList) Execute(args []string) error {
 	err = grpcurl.InvokeRPC(ctx, descriptor, conn, method, []string{}, h, h.GetParams)
 	if err != nil {
 		return err
-	} else if h.Status != nil {
-		if h.Status.Code() == codes.NotFound {
-			descriptor, method, err = GetMethod("logical-flow-list")
-			if err != nil {
-				return err
-			}
-
-			ctx, cancel = context.WithTimeout(context.Background(), GlobalConfig.Grpc.Timeout)
-			defer cancel()
-
-			h = &RpcEventHandler{
-				Fields: map[string]map[string]interface{}{ParamNames[GlobalConfig.ApiVersion]["ID"]: {"id": options.Args.Id}},
-			}
-			err = grpcurl.InvokeRPC(ctx, descriptor, conn, method, []string{}, h, h.GetParams)
-			if err != nil {
-				return err
-			}
-		}
-	}
-	if h.Status != nil && h.Status.Err() != nil {
-		if h.Status.Code() == codes.NotFound {
-			return fmt.Errorf("Device not found: %s", options.Args.Id)
-		}
+	} else if h.Status != nil && h.Status.Err() != nil {
 		return h.Status.Err()
 	}
 

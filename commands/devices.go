@@ -86,6 +86,10 @@ type DevicePortOutput struct {
 	Peers      []PeerPort `json:"peers"`
 }
 
+type DeviceFlowList struct {
+	FlowList
+}
+
 type DevicePortList struct {
 	OutputOptions
 	Args struct {
@@ -99,6 +103,7 @@ type DeviceOpts struct {
 	Delete  DeviceDelete   `command:"delete"`
 	Enable  DeviceEnable   `command:"enable"`
 	Disable DeviceDisable  `command:"disable"`
+	Flows   DeviceFlowList `command:"flows"`
 	Ports   DevicePortList `command:"ports"`
 }
 
@@ -399,4 +404,12 @@ func (options *DevicePortList) Execute(args []string) error {
 
 	GenerateOutput(&result)
 	return nil
+}
+
+func (options *DeviceFlowList) Execute(args []string) error {
+	fl := &FlowList{}
+	fl.OutputOptions = options.OutputOptions
+	fl.Args = options.Args
+	fl.Method = "device-flow-list"
+	return fl.Execute(args)
 }
