@@ -92,9 +92,10 @@ var (
 )
 
 type OutputOptions struct {
-	Format   string `long:"format" value-name:"FORMAT" default:"" description:"Format to use to output structured data"`
-	Quiet    bool   `short:"q" long:"quiet" description:"Output only the IDs of the objects"`
-	OutputAs string `short:"o" long:"outputas" default:"table" choice:"table" choice:"json" choice:"yaml" description:"Type of output to generate"`
+	Format    string `long:"format" value-name:"FORMAT" default:"" description:"Format to use to output structured data"`
+	Quiet     bool   `short:"q" long:"quiet" description:"Output only the IDs of the objects"`
+	OutputAs  string `short:"o" long:"outputas" default:"table" choice:"table" choice:"json" choice:"yaml" description:"Type of output to generate"`
+	NameLimit int    `short:"l" long:"namelimit" default:"-1" description:"Limit the depth (length) in the table column name"`
 }
 
 func toOutputType(in string) OutputType {
@@ -111,9 +112,10 @@ func toOutputType(in string) OutputType {
 }
 
 type CommandResult struct {
-	Format   format.Format
-	OutputAs OutputType
-	Data     interface{}
+	Format    format.Format
+	OutputAs  OutputType
+	NameLimit int
+	Data      interface{}
 }
 
 type config struct {
@@ -157,7 +159,7 @@ func GenerateOutput(result *CommandResult) {
 	if result != nil && result.Data != nil {
 		if result.OutputAs == OUTPUT_TABLE {
 			tableFormat := format.Format(result.Format)
-			tableFormat.Execute(os.Stdout, true, result.Data)
+			tableFormat.Execute(os.Stdout, true, result.NameLimit, result.Data)
 		} else if result.OutputAs == OUTPUT_JSON {
 			asJson, err := json.Marshal(&result.Data)
 			if err != nil {

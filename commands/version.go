@@ -40,7 +40,7 @@ type VersionOutput struct {
 }
 
 type VersionOpts struct {
-	OutputAs string `short:"o" long:"outputas" default:"table" choice:"table" choice:"json" choice:"yaml" description:"Type of output to generate"`
+	OutputOptions
 }
 
 var versionOpts = VersionOpts{}
@@ -118,10 +118,19 @@ func (options *VersionOpts) Execute(args []string) error {
 
 	versionInfo.Cluster.Version = strings.ReplaceAll(version.(string), "\n", "")
 
+	outputFormat := CharReplacer.Replace(options.Format)
+	if outputFormat == "" {
+		outputFormat = DefaultFormat
+	}
+	if options.Quiet {
+		outputFormat = "{{.Client.Version}}"
+	}
+
 	result := CommandResult{
-		Format:   format.Format(DefaultFormat),
-		OutputAs: toOutputType(options.OutputAs),
-		Data:     versionInfo,
+		Format:    format.Format(outputFormat),
+		OutputAs:  toOutputType(options.OutputAs),
+		NameLimit: options.NameLimit,
+		Data:      versionInfo,
 	}
 
 	GenerateOutput(&result)

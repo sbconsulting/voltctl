@@ -25,7 +25,7 @@ import (
 	"text/template/parse"
 )
 
-var nameFinder = regexp.MustCompile(`\.([_A-Za-z0-9]*)}}`)
+var nameFinder = regexp.MustCompile(`\.([\._A-Za-z0-9]*)}}`)
 
 type Format string
 
@@ -33,7 +33,7 @@ func (f Format) IsTable() bool {
 	return strings.HasPrefix(string(f), "table")
 }
 
-func (f Format) Execute(writer io.Writer, withHeaders bool, data interface{}) error {
+func (f Format) Execute(writer io.Writer, withHeaders bool, nameLimit int, data interface{}) error {
 	var tabWriter *tabwriter.Writer = nil
 	format := f
 
@@ -58,7 +58,16 @@ func (f Format) Execute(writer io.Writer, withHeaders bool, data interface{}) er
 			case parse.NodeAction:
 				found := nameFinder.FindStringSubmatch(n.String())
 				if len(found) == 2 {
-					header += strings.ToUpper(found[1])
+					if nameLimit > 0 {
+						parts := strings.Split(found[1], ".")
+						start := len(parts) - nameLimit
+						if start < 0 {
+							start = 0
+						}
+						header += strings.ToUpper(strings.Join(parts[start:], "."))
+					} else {
+						header += strings.ToUpper(found[1])
+					}
 				}
 			}
 		}

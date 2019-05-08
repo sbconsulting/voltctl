@@ -26,7 +26,8 @@ import (
 )
 
 const (
-	DEFAULT_DEVICE_FORMAT = "table{{ .Id }}\t{{.Type}}\t{{.Root}}\t{{.ParentId}}\t{{.SerialNumber}}\t{{.Vlan}}\t{{.AdminState}}\t{{.OperStatus}}\t{{.ConnectStatus}}"
+	DEFAULT_DEVICE_FORMAT       = "table{{ .Id }}\t{{.Type}}\t{{.Root}}\t{{.ParentId}}\t{{.SerialNumber}}\t{{.Vlan}}\t{{.AdminState}}\t{{.OperStatus}}\t{{.ConnectStatus}}"
+	DEFAULT_DEVICE_PORTS_FORMAT = "table{{.PortNo}}\t{{.Label}}\t{{.Type}}\t{{.AdminState}}\t{{.OperStatus}}\t{{.DeviceId}}\t{{.Peers}}"
 )
 
 type DeviceList struct {
@@ -34,15 +35,15 @@ type DeviceList struct {
 }
 
 type DeviceListOutput struct {
-	Id            string
-	Type          string
-	Root          bool
-	ParentId      string
-	SerialNumber  string
-	Vlan          uint32
-	AdminState    string
-	OperStatus    string
-	ConnectStatus string
+	Id            string `json:"id"`
+	Type          string `json:"type"`
+	Root          bool   `json:"root"`
+	ParentId      string `json:"parentid"`
+	SerialNumber  string `json:"serialnumber"`
+	Vlan          uint32 `json:"vlan"`
+	AdminState    string `json:"adminstate"`
+	OperStatus    string `json:"operstatus"`
+	ConnectStatus string `json:"connectstatus"`
 }
 
 type DeviceCreate struct {
@@ -70,12 +71,35 @@ type DeviceDisable struct {
 	} `positional-args:"yes"`
 }
 
+type PeerPort struct {
+	DeviceId string `json:"deviceid"`
+	PortNo   uint32 `json:"portno"`
+}
+
+type DevicePortOutput struct {
+	PortNo     uint32     `json:"portno"`
+	Label      string     `json:"label"`
+	Type       string     `json:"type"`
+	AdminState string     `json:"adminstate"`
+	OperStatus string     `json:"operstatus"`
+	DeviceId   string     `json:"deviceid"`
+	Peers      []PeerPort `json:"peers"`
+}
+
+type DevicePortList struct {
+	OutputOptions
+	Args struct {
+		Id string `positional-arg-name:"DEVICE_ID" required:"yes"`
+	} `positional-args:"yes"`
+}
+
 type DeviceOpts struct {
-	List    DeviceList    `command:"list"`
-	Create  DeviceCreate  `command:"create"`
-	Delete  DeviceDelete  `command:"delete"`
-	Enable  DeviceEnable  `command:"enable"`
-	Disable DeviceDisable `command:"disable"`
+	List    DeviceList     `command:"list"`
+	Create  DeviceCreate   `command:"create"`
+	Delete  DeviceDelete   `command:"delete"`
+	Enable  DeviceEnable   `command:"enable"`
+	Disable DeviceDisable  `command:"disable"`
+	Ports   DevicePortList `command:"ports"`
 }
 
 var deviceOpts = DeviceOpts{}
@@ -144,9 +168,10 @@ func (options *DeviceList) Execute(args []string) error {
 	}
 
 	result := CommandResult{
-		Format:   format.Format(outputFormat),
-		OutputAs: toOutputType(options.OutputAs),
-		Data:     data,
+		Format:    format.Format(outputFormat),
+		OutputAs:  toOutputType(options.OutputAs),
+		NameLimit: options.NameLimit,
+		Data:      data,
 	}
 
 	GenerateOutput(&result)
@@ -298,5 +323,80 @@ func (options *DeviceDisable) Execute(args []string) error {
 		fmt.Printf("%s\n", i)
 	}
 
+	return nil
+}
+
+func (options *DevicePortList) Execute(args []string) error {
+
+	conn, err := NewConnection()
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	descriptor, method, err := GetMethod("device-ports")
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), GlobalConfig.Grpc.Timeout)
+	defer cancel()
+
+	h := &RpcEventHandler{
+		Fields: map[string]map[string]interface{}{ParamNames[GlobalConfig.ApiVersion]["ID"]: {"id": options.Args.Id}},
+	}
+	err = grpcurl.InvokeRPC(ctx, descriptor, conn, method, []string{}, h, h.GetParams)
+	if err != nil {
+		return err
+	}
+
+	if h.Status != nil && h.Status.Err() != nil {
+		return h.Status.Err()
+	}
+
+	d, err := dynamic.AsDynamicMessage(h.Response)
+	if err != nil {
+		return err
+	}
+
+	items, err := d.TryGetFieldByName("items")
+	if err != nil {
+		return err
+	}
+
+	outputFormat := CharReplacer.Replace(options.Format)
+	if outputFormat == "" {
+		outputFormat = DEFAULT_DEVICE_PORTS_FORMAT
+	}
+	if options.Quiet {
+		outputFormat = "{{.Id}}"
+	}
+
+	data := make([]DevicePortOutput, len(items.([]interface{})))
+	for i, item := range items.([]interface{}) {
+		val := item.(*dynamic.Message)
+		data[i].PortNo = val.GetFieldByName("port_no").(uint32)
+		data[i].Type = GetEnumValue(val, "type")
+		data[i].Label = val.GetFieldByName("label").(string)
+		data[i].AdminState = GetEnumValue(val, "admin_state")
+		data[i].OperStatus = GetEnumValue(val, "oper_status")
+		data[i].DeviceId = val.GetFieldByName("device_id").(string)
+		peers := val.GetFieldByName("peers").([]interface{})
+		data[i].Peers = make([]PeerPort, len(peers))
+		for j, peer := range peers {
+			p := peer.(*dynamic.Message)
+			data[i].Peers[j].DeviceId = p.GetFieldByName("device_id").(string)
+			data[i].Peers[j].PortNo = p.GetFieldByName("port_no").(uint32)
+		}
+	}
+
+	result := CommandResult{
+		Format:    format.Format(outputFormat),
+		OutputAs:  toOutputType(options.OutputAs),
+		NameLimit: options.NameLimit,
+		Data:      data,
+	}
+
+	GenerateOutput(&result)
 	return nil
 }

@@ -382,9 +382,10 @@ func (options *FlowList) Execute(args []string) error {
 	}
 
 	result := CommandResult{
-		Format:   format.Format(outputFormat),
-		OutputAs: toOutputType(options.OutputAs),
-		Data:     data,
+		Format:    format.Format(outputFormat),
+		OutputAs:  toOutputType(options.OutputAs),
+		NameLimit: options.NameLimit,
+		Data:      data,
 	}
 	GenerateOutput(&result)
 
