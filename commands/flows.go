@@ -150,6 +150,10 @@ func appendUint32(base string, val uint32) string {
 }
 
 func (options *FlowList) Execute(args []string) error {
+	if len(args) > 0 {
+		return fmt.Errorf("only a single argument 'DEVICE_ID' can be provided")
+	}
+
 	conn, err := NewConnection()
 	if err != nil {
 		return err
