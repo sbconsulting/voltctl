@@ -51,39 +51,91 @@ type DeviceCreate struct {
 	HostAndPort string `short:"H" long:"hostandport" default:"" description:"Host and port"`
 }
 
+type DeviceId string
+
 type DeviceDelete struct {
 	Args struct {
-		Ids []string `positional-arg-name:"DEVICE_ID" required:"yes"`
+		Ids []DeviceId `positional-arg-name:"DEVICE_ID" required:"yes"`
 	} `positional-args:"yes"`
 }
 
 type DeviceEnable struct {
 	Args struct {
-		Ids []string `positional-arg-name:"DEVICE_ID" required:"yes"`
+		Ids []DeviceId `positional-arg-name:"DEVICE_ID" required:"yes"`
 	} `positional-args:"yes"`
 }
 
 type DeviceDisable struct {
 	Args struct {
-		Ids []string `positional-arg-name:"DEVICE_ID" required:"yes"`
+		Ids []DeviceId `positional-arg-name:"DEVICE_ID" required:"yes"`
 	} `positional-args:"yes"`
 }
 
 type DeviceFlowList struct {
-	FlowList
+	OutputOptions
+	Args struct {
+		Id DeviceId `positional-arg-name:"DEVICE_ID" required:"yes"`
+	} `positional-args:"yes"`
 }
 
 type DevicePortList struct {
 	OutputOptions
 	Args struct {
-		Id string `positional-arg-name:"DEVICE_ID" required:"yes"`
+		Id DeviceId `positional-arg-name:"DEVICE_ID" required:"yes"`
 	} `positional-args:"yes"`
+}
+
+func (i *DeviceId) Complete(match string) []flags.Completion {
+	conn, err := NewConnection()
+	if err != nil {
+		return nil
+	}
+	defer conn.Close()
+
+	descriptor, method, err := GetMethod("device-list")
+	if err != nil {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), GlobalConfig.Grpc.Timeout)
+	defer cancel()
+
+	h := &RpcEventHandler{}
+	err = grpcurl.InvokeRPC(ctx, descriptor, conn, method, []string{}, h, h.GetParams)
+	if err != nil {
+		return nil
+	}
+
+	if h.Status != nil && h.Status.Err() != nil {
+		return nil
+	}
+
+	d, err := dynamic.AsDynamicMessage(h.Response)
+	if err != nil {
+		return nil
+	}
+
+	items, err := d.TryGetFieldByName("items")
+	if err != nil {
+		return nil
+	}
+
+	list := make([]flags.Completion, 0)
+	for _, item := range items.([]interface{}) {
+		val := item.(*dynamic.Message)
+		id := val.GetFieldByName("id").(string)
+		if strings.HasPrefix(id, match) {
+			list = append(list, flags.Completion{Item: id})
+		}
+	}
+
+	return list
 }
 
 type DeviceInspect struct {
 	OutputOptionsJson
 	Args struct {
-		Id string `positional-arg-name:"DEVICE_ID" required:"yes"`
+		Id DeviceId `positional-arg-name:"DEVICE_ID" required:"yes"`
 	} `positional-args:"yes"`
 }
 
@@ -378,7 +430,7 @@ func (options *DevicePortList) Execute(args []string) error {
 func (options *DeviceFlowList) Execute(args []string) error {
 	fl := &FlowList{}
 	fl.OutputOptions = options.OutputOptions
-	fl.Args = options.Args
+	fl.Args.Id = string(options.Args.Id)
 	fl.Method = "device-flow-list"
 	return fl.Execute(args)
 }

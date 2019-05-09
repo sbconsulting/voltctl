@@ -71,11 +71,12 @@ var (
  * Construct a template format string based on the fields required by the
  * results.
  */
-func buildOutputFormat(fieldset model.FlowFieldFlag) string {
-	fields := make([]string, fieldset.Count())
+func buildOutputFormat(fieldset model.FlowFieldFlag, ignore model.FlowFieldFlag) string {
+	want := fieldset & ^(ignore)
+	fields := make([]string, want.Count())
 	idx := 0
 	for _, flag := range model.AllFlowFieldFlags {
-		if fieldset.IsSet(flag) {
+		if want.IsSet(flag) {
 			fields[idx] = flag.String()
 			idx += 1
 		}
@@ -179,7 +180,7 @@ func (options *FlowList) Execute(args []string) error {
 	if options.Quiet {
 		outputFormat = "{{.Id}}"
 	} else if outputFormat == "" {
-		outputFormat = buildOutputFormat(fieldset)
+		outputFormat = buildOutputFormat(fieldset, model.FLOW_FIELD_STATS)
 	}
 
 	result := CommandResult{

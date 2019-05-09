@@ -52,6 +52,13 @@ const (
 	FLOW_FIELD_PUSH_VLAN_ID
 	FLOW_FIELD_OUTPUT
 	FLOW_FIELD_GOTO_TABLE
+
+	FLOW_FIELD_HEADER = FLOW_FIELD_ID | FLOW_FIELD_TABLE_ID |
+		FLOW_FIELD_PRIORITY | FLOW_FIELD_COOKIE
+
+	FLOW_FIELD_STATS = FLOW_FIELD_DURATION_SEC | FLOW_FIELD_DURATION_NSEC |
+		FLOW_FIELD_IDLE_TIMEOUT | FLOW_FIELD_HARD_TIMEOUT |
+		FLOW_FIELD_PACKET_COUNT | FLOW_FIELD_BYTE_COUNT
 )
 
 var (
@@ -130,9 +137,9 @@ func (f FlowFieldFlag) String() string {
 	case FLOW_FIELD_TABLE_ID:
 		return "TableId"
 	case FLOW_FIELD_DURATION_SEC:
-		return "DuractionSec"
+		return "DurationSec"
 	case FLOW_FIELD_DURATION_NSEC:
-		return "DuractionNsec"
+		return "DurationNsec"
 	case FLOW_FIELD_IDLE_TIMEOUT:
 		return "IdleTimeout"
 	case FLOW_FIELD_HARD_TIMEOUT:
@@ -279,9 +286,7 @@ func (f *Flow) PopulateFrom(val *dynamic.Message) {
 	f.HardTimeout = val.GetFieldByName("hard_timeout").(uint32)
 	f.PacketCount = val.GetFieldByName("packet_count").(uint64)
 	f.ByteCount = val.GetFieldByName("byte_count").(uint64)
-	f.Set(FLOW_FIELD_ID | FLOW_FIELD_TABLE_ID | FLOW_FIELD_PRIORITY | FLOW_FIELD_COOKIE |
-		FLOW_FIELD_DURATION_SEC | FLOW_FIELD_DURATION_NSEC | FLOW_FIELD_IDLE_TIMEOUT |
-		FLOW_FIELD_HARD_TIMEOUT | FLOW_FIELD_PACKET_COUNT | FLOW_FIELD_BYTE_COUNT)
+	f.Set(FLOW_FIELD_HEADER | FLOW_FIELD_STATS)
 
 	match := val.GetFieldByName("match").(*dynamic.Message)
 	fields := match.GetFieldByName("oxm_fields")
