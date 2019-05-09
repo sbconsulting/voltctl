@@ -31,9 +31,11 @@ type LogicalDevice struct {
 		NTables      uint32 `json:"ntables"`
 		Capabilities string `json:"capabilities"`
 	} `json:"features"`
+	Ports []LogicalPort `json:"ports"`
+	Flows []Flow        `json:"flows"`
 }
 
-type LogicalDevicePort struct {
+type LogicalPort struct {
 	Id           string `json:"id"`
 	DeviceId     string `json:"deviceid"`
 	DevicePortNo uint32 `json:"deviceportno"`
@@ -67,9 +69,26 @@ func (device *LogicalDevice) PopulateFrom(val *dynamic.Message) {
 	device.Features.NBuffers = features.GetFieldByName("n_buffers").(uint32)
 	device.Features.NTables = features.GetFieldByName("n_tables").(uint32)
 	device.Features.Capabilities = fmt.Sprintf("0x%08x", features.GetFieldByName("capabilities").(uint32))
+
+	ports := val.GetFieldByName("ports").([]interface{})
+	device.Ports = make([]LogicalPort, len(ports))
+	for i, port := range ports {
+		device.Ports[i].PopulateFrom(port.(*dynamic.Message))
+	}
+
+	flows := val.GetFieldByName("flows").(*dynamic.Message)
+	if flows == nil {
+		device.Flows = make([]Flow, 0)
+	} else {
+		items := flows.GetFieldByName("items").([]interface{})
+		device.Flows = make([]Flow, len(items))
+		for i, flow := range items {
+			device.Flows[i].PopulateFrom(flow.(*dynamic.Message))
+		}
+	}
 }
 
-func (port *LogicalDevicePort) PopulateFrom(val *dynamic.Message) {
+func (port *LogicalPort) PopulateFrom(val *dynamic.Message) {
 	port.Id = val.GetFieldByName("id").(string)
 	port.DeviceId = val.GetFieldByName("device_id").(string)
 	port.DevicePortNo = val.GetFieldByName("device_port_no").(uint32)

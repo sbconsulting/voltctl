@@ -17,6 +17,7 @@ package commands
 
 import (
 	"context"
+	"fmt"
 	"github.com/ciena/voltctl/format"
 	"github.com/ciena/voltctl/model"
 	"github.com/fullstorydev/grpcurl"
@@ -25,8 +26,12 @@ import (
 )
 
 const (
-	DEFAULT_LOGICAL_DEVICE_FORMAT      = "table{{ .Id }}\t{{.DatapathId}}\t{{.RootDeviceId}}\t{{.SerialNumber}}\t{{.Features.NBuffers}}\t{{.Features.NTables}}\t{{.Features.Capabilities}}"
-	DEFAULT_LOGICAL_DEVICE_PORT_FORMAT = "table{{.Id}}\t{{.DeviceId}}\t{{.DevicePortNo}}\t{{.RootPort}}\t{{.Openflow.PortNo}}\t{{.Openflow.HwAddr}}\t{{.Openflow.Name}}\t{{.Openflow.State}}\t{{.Openflow.Features.Current}}\t{{.Openflow.Bitrate.Current}}"
+	DEFAULT_LOGICAL_DEVICE_FORMAT         = "table{{ .Id }}\t{{.DatapathId}}\t{{.RootDeviceId}}\t{{.SerialNumber}}\t{{.Features.NBuffers}}\t{{.Features.NTables}}\t{{.Features.Capabilities}}"
+	DEFAULT_LOGICAL_DEVICE_PORT_FORMAT    = "table{{.Id}}\t{{.DeviceId}}\t{{.DevicePortNo}}\t{{.RootPort}}\t{{.Openflow.PortNo}}\t{{.Openflow.HwAddr}}\t{{.Openflow.Name}}\t{{.Openflow.State}}\t{{.Openflow.Features.Current}}\t{{.Openflow.Bitrate.Current}}"
+	DEFAULT_LOGICAL_DEVICE_INSPECT_FORMAT = `ID: {{.Id}}
+  DATAPATHID: {{.DatapathId}}
+  ROOTDEVICEID: {{.RootDeviceId}}
+  SERIALNUMNER: {{.SerialNumber}}`
 )
 
 type LogicalDeviceList struct {
@@ -44,10 +49,18 @@ type LogicalDevicePortList struct {
 	} `positional-args:"yes"`
 }
 
+type LogicalDeviceInspect struct {
+	OutputOptionsJson
+	Args struct {
+		Id string `positional-arg-name:"DEVICE_ID" required:"yes"`
+	} `positional-args:"yes"`
+}
+
 type LogicalDeviceOpts struct {
-	List  LogicalDeviceList     `command:"list"`
-	Flows LogicalDeviceFlowList `command:"flows"`
-	Ports LogicalDevicePortList `command:"ports"`
+	List    LogicalDeviceList     `command:"list"`
+	Flows   LogicalDeviceFlowList `command:"flows"`
+	Ports   LogicalDevicePortList `command:"ports"`
+	Inspect LogicalDeviceInspect  `command:"inspect"`
 }
 
 var logicalDeviceOpts = LogicalDeviceOpts{}
@@ -162,7 +175,7 @@ func (options *LogicalDevicePortList) Execute(args []string) error {
 		outputFormat = "{{.Id}}"
 	}
 
-	data := make([]model.LogicalDevicePort, len(items.([]interface{})))
+	data := make([]model.LogicalPort, len(items.([]interface{})))
 	for i, item := range items.([]interface{}) {
 		data[i].PopulateFrom(item.(*dynamic.Message))
 	}
@@ -184,4 +197,59 @@ func (options *LogicalDeviceFlowList) Execute(args []string) error {
 	fl.Args = options.Args
 	fl.Method = "logical-device-flow-list"
 	return fl.Execute(args)
+}
+
+func (options *LogicalDeviceInspect) Execute(args []string) error {
+	if len(args) > 0 {
+		return fmt.Errorf("only a single argument 'DEVICE_ID' can be provided")
+	}
+
+	conn, err := NewConnection()
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	descriptor, method, err := GetMethod("logical-device-inspect")
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), GlobalConfig.Grpc.Timeout)
+	defer cancel()
+
+	h := &RpcEventHandler{
+		Fields: map[string]map[string]interface{}{ParamNames[GlobalConfig.ApiVersion]["ID"]: {"id": options.Args.Id}},
+	}
+	err = grpcurl.InvokeRPC(ctx, descriptor, conn, method, []string{"Get-Depth: 2"}, h, h.GetParams)
+	if err != nil {
+		return err
+	} else if h.Status != nil && h.Status.Err() != nil {
+		return h.Status.Err()
+	}
+
+	d, err := dynamic.AsDynamicMessage(h.Response)
+	if err != nil {
+		return err
+	}
+
+	device := &model.LogicalDevice{}
+	device.PopulateFrom(d)
+
+	outputFormat := CharReplacer.Replace(options.Format)
+	if outputFormat == "" {
+		outputFormat = DEFAULT_LOGICAL_DEVICE_INSPECT_FORMAT
+	}
+	if options.Quiet {
+		outputFormat = "{{.Id}}"
+	}
+
+	result := CommandResult{
+		Format:    format.Format(outputFormat),
+		OutputAs:  toOutputType(options.OutputAs),
+		NameLimit: options.NameLimit,
+		Data:      device,
+	}
+	GenerateOutput(&result)
+	return nil
 }
