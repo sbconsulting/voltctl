@@ -49,10 +49,10 @@ type TlsConfigSpec struct {
 }
 
 type GlobalConfigSpec struct {
-	ApiVersion string        `yaml:"apiVersion"`
-	Server     string        `yaml:"server"`
-	Tls        TlsConfigSpec `yaml:"tls"`
-	Grpc       GrpcConfigSpec
+	ApiVersion string         `yaml:"apiVersion"`
+	Server     string         `yaml:"server"`
+	Tls        TlsConfigSpec  `yaml:"tls"`
+	Grpc       GrpcConfigSpec `yaml:"grpc"`
 }
 
 var (
@@ -130,7 +130,7 @@ type config struct {
 	Server     string `yaml:"server"`
 }
 
-func NewConnection() (*grpc.ClientConn, error) {
+func ProcessGlobalOptions() {
 	if len(GlobalOptions.Config) == 0 {
 		home, err := os.UserHomeDir()
 		if err != nil {
@@ -158,7 +158,10 @@ func NewConnection() (*grpc.ClientConn, error) {
 	if GlobalOptions.ApiVersion != "" {
 		GlobalConfig.ApiVersion = GlobalOptions.ApiVersion
 	}
+}
 
+func NewConnection() (*grpc.ClientConn, error) {
+	ProcessGlobalOptions()
 	return grpc.Dial(GlobalConfig.Server, grpc.WithInsecure())
 }
 
