@@ -180,7 +180,7 @@ type Flow struct {
 	Output                 string `json:"output,omitempty"`
 	GotoTable              string `json:"gototable,omitempty"`
 
-	populated FlowFieldFlag `json:"-"`
+	populated FlowFieldFlag
 }
 
 func (f *Flow) Count() int {
