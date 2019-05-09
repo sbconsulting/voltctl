@@ -17,12 +17,11 @@ package commands
 
 import (
 	"context"
-	"fmt"
 	"github.com/ciena/voltctl/format"
+	"github.com/ciena/voltctl/model"
 	"github.com/fullstorydev/grpcurl"
 	flags "github.com/jessevdk/go-flags"
 	"github.com/jhump/protoreflect/dynamic"
-	"strings"
 )
 
 const (
@@ -34,18 +33,6 @@ type LogicalDeviceList struct {
 	OutputOptions
 }
 
-type LogicalDeviceListOutput struct {
-	Id           string `json:"id"`
-	DatapathId   string `json:"datapathid"`
-	RootDeviceId string `json:"rootdeviceid"`
-	SerialNumber string `json:"serialnumber"`
-	Features     struct {
-		NBuffers     uint32 `json:"nbuffers"`
-		NTables      uint32 `json:"ntables"`
-		Capabilities string `json:"capabilities"`
-	} `json:"features"`
-}
-
 type LogicalDeviceFlowList struct {
 	FlowList
 }
@@ -55,30 +42,6 @@ type LogicalDevicePortList struct {
 	Args struct {
 		Id string `positional-arg-name:"DEVICE_ID" required:"yes"`
 	} `positional-args:"yes"`
-}
-
-type LogicalDevicePortOutput struct {
-	Id           string `json:"id"`
-	DeviceId     string `json:"deviceid"`
-	DevicePortNo uint32 `json:"deviceportno"`
-	RootPort     bool   `json:"rootport"`
-	Openflow     struct {
-		PortNo   uint32 `json:"portno"`
-		HwAddr   string `json:"hwaddr"`
-		Name     string `json:"name"`
-		Config   string `json:"config"`
-		State    string `json:"state"`
-		Features struct {
-			Advertised string `json:"advertised"`
-			Current    string `json:"current"`
-			Supported  string `json:"supported"`
-			Peer       string `json:"peer"`
-		} `json:"features"`
-		Bitrate struct {
-			Current uint32 `json:"current"`
-			Max     uint32 `json:"max"`
-		}
-	} `json:"openflow"`
 }
 
 type LogicalDeviceOpts struct {
@@ -137,19 +100,9 @@ func (options *LogicalDeviceList) Execute(args []string) error {
 		outputFormat = "{{.Id}}"
 	}
 
-	data := make([]LogicalDeviceListOutput, len(items.([]interface{})))
-
+	data := make([]model.LogicalDevice, len(items.([]interface{})))
 	for i, item := range items.([]interface{}) {
-		val := item.(*dynamic.Message)
-		data[i].Id = val.GetFieldByName("id").(string)
-		data[i].DatapathId = fmt.Sprintf("%016x", val.GetFieldByName("datapath_id").(uint64))
-		data[i].RootDeviceId = val.GetFieldByName("root_device_id").(string)
-		desc := val.GetFieldByName("desc").(*dynamic.Message)
-		data[i].SerialNumber = desc.GetFieldByName("serial_num").(string)
-		features := val.GetFieldByName("switch_features").(*dynamic.Message)
-		data[i].Features.NBuffers = features.GetFieldByName("n_buffers").(uint32)
-		data[i].Features.NTables = features.GetFieldByName("n_tables").(uint32)
-		data[i].Features.Capabilities = fmt.Sprintf("0x%08x", features.GetFieldByName("capabilities").(uint32))
+		data[i].PopulateFrom(item.(*dynamic.Message))
 	}
 
 	result := CommandResult{
@@ -209,36 +162,9 @@ func (options *LogicalDevicePortList) Execute(args []string) error {
 		outputFormat = "{{.Id}}"
 	}
 
-	var hw strings.Builder
-	var first bool
-	data := make([]LogicalDevicePortOutput, len(items.([]interface{})))
+	data := make([]model.LogicalDevicePort, len(items.([]interface{})))
 	for i, item := range items.([]interface{}) {
-		val := item.(*dynamic.Message)
-		data[i].Id = val.GetFieldByName("id").(string)
-		data[i].DeviceId = val.GetFieldByName("device_id").(string)
-		data[i].DevicePortNo = val.GetFieldByName("device_port_no").(uint32)
-		data[i].RootPort = val.GetFieldByName("root_port").(bool)
-		ofp := val.GetFieldByName("ofp_port").(*dynamic.Message)
-		hw.Reset()
-		first = true
-		for _, b := range ofp.GetFieldByName("hw_addr").([]interface{}) {
-			if !first {
-				hw.WriteString(":")
-			}
-			first = false
-			hw.WriteString(fmt.Sprintf("%02x", b))
-		}
-		data[i].Openflow.HwAddr = hw.String()
-		data[i].Openflow.PortNo = ofp.GetFieldByName("port_no").(uint32)
-		data[i].Openflow.Name = ofp.GetFieldByName("name").(string)
-		data[i].Openflow.Config = fmt.Sprintf("0x%08x", ofp.GetFieldByName("config").(uint32))
-		data[i].Openflow.State = fmt.Sprintf("0x%08x", ofp.GetFieldByName("state").(uint32))
-		data[i].Openflow.Features.Current = fmt.Sprintf("0x%08x", ofp.GetFieldByName("curr").(uint32))
-		data[i].Openflow.Features.Advertised = fmt.Sprintf("0x%08x", ofp.GetFieldByName("advertised").(uint32))
-		data[i].Openflow.Features.Supported = fmt.Sprintf("0x%08x", ofp.GetFieldByName("supported").(uint32))
-		data[i].Openflow.Features.Peer = fmt.Sprintf("0x%08x", ofp.GetFieldByName("peer").(uint32))
-		data[i].Openflow.Bitrate.Current = ofp.GetFieldByName("curr_speed").(uint32)
-		data[i].Openflow.Bitrate.Max = ofp.GetFieldByName("max_speed").(uint32)
+		data[i].PopulateFrom(item.(*dynamic.Message))
 	}
 
 	result := CommandResult{

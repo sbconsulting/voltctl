@@ -18,6 +18,7 @@ package commands
 import (
 	"context"
 	"github.com/ciena/voltctl/format"
+	"github.com/ciena/voltctl/model"
 	"github.com/fullstorydev/grpcurl"
 	flags "github.com/jessevdk/go-flags"
 	"github.com/jhump/protoreflect/dynamic"
@@ -33,13 +34,6 @@ type AdapterList struct {
 
 type AdapterOpts struct {
 	List AdapterList `command:"list"`
-}
-
-type AdapterOutput struct {
-	Id       string
-	Vendor   string
-	Version  string
-	LogLevel string
 }
 
 var adapterOpts = AdapterOpts{}
@@ -91,15 +85,9 @@ func (options *AdapterList) Execute(args []string) error {
 		outputFormat = "{{.Id}}"
 	}
 
-	data := make([]AdapterOutput, len(items.([]interface{})))
-
+	data := make([]model.Adapter, len(items.([]interface{})))
 	for i, item := range items.([]interface{}) {
-		val := item.(*dynamic.Message)
-		data[i].Id = val.GetFieldByName("id").(string)
-		data[i].Vendor = val.GetFieldByName("vendor").(string)
-		data[i].Version = val.GetFieldByName("version").(string)
-		config := val.GetFieldByName("config")
-		data[i].LogLevel = GetEnumValue(config.(*dynamic.Message), "log_level")
+		data[i].PopulateFrom(item.(*dynamic.Message))
 	}
 
 	result := CommandResult{

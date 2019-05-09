@@ -20,7 +20,6 @@ import (
 	"github.com/fullstorydev/grpcurl"
 	"github.com/golang/protobuf/proto"
 	descpb "github.com/golang/protobuf/protoc-gen-go/descriptor"
-	"github.com/jhump/protoreflect/dynamic"
 )
 
 type MethodNotFoundError struct {
@@ -143,9 +142,4 @@ func GetMethod(name string) (grpcurl.DescriptorSource, string, error) {
 	}
 
 	return desc, m, nil
-}
-
-func GetEnumValue(val *dynamic.Message, name string) string {
-	return val.FindFieldDescriptorByName(name).GetEnumType().
-		FindValueByNumber(val.GetFieldByName(name).(int32)).GetName()
 }

@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/ciena/voltctl/format"
+	"github.com/ciena/voltctl/model"
 	"github.com/fullstorydev/grpcurl"
 	flags "github.com/jessevdk/go-flags"
 	"github.com/jhump/protoreflect/dynamic"
@@ -41,40 +42,6 @@ const (
 
 type DeviceList struct {
 	OutputOptions
-}
-
-type ProxyAddress struct {
-	DeviceId           string `json:"deviceId"`
-	DeviceType         string `json:"devicetype,omitempty"`
-	ChannelId          uint32 `json:"channelid"`
-	ChannelGroupId     uint32 `json:"channelgroup"`
-	ChannelTermination string `json:"channeltermination,omitempty"`
-	OnuId              uint32 `json:"onuid"`
-	OnuSessionId       uint32 `json:"onusessionid"`
-}
-
-type DeviceOutput struct {
-	Id              string        `json:"id"`
-	Type            string        `json:"type"`
-	Root            bool          `json:"root"`
-	ParentId        string        `json:"parentid"`
-	ParentPortNo    uint32        `json:"parentportno"`
-	Vendor          string        `json:"vendor"`
-	Model           string        `json:"model"`
-	HardwareVersion string        `json:hardwareversion"`
-	FirmwareVersion string        `json:firmwareversion"`
-	SerialNumber    string        `json:"serialnumber"`
-	VendorId        string        `json:"vendorid"`
-	Adapter         string        `json:"adapter"`
-	Vlan            uint32        `json:"vlan"`
-	MacAddress      string        `json:"macaddress"`
-	Address         string        `json:address"`
-	ExtraArgs       string        `json:"extraargs"`
-	ProxyAddress    *ProxyAddress `json:"proxyaddress,omitempty"`
-	AdminState      string        `json:"adminstate"`
-	OperStatus      string        `json:"operstatus"`
-	Reason          string        `json:"reason"`
-	ConnectStatus   string        `json:"connectstatus"`
 }
 
 type DeviceCreate struct {
@@ -100,21 +67,6 @@ type DeviceDisable struct {
 	Args struct {
 		Ids []string `positional-arg-name:"DEVICE_ID" required:"yes"`
 	} `positional-args:"yes"`
-}
-
-type PeerPort struct {
-	DeviceId string `json:"deviceid"`
-	PortNo   uint32 `json:"portno"`
-}
-
-type DevicePortOutput struct {
-	PortNo     uint32     `json:"portno"`
-	Label      string     `json:"label"`
-	Type       string     `json:"type"`
-	AdminState string     `json:"adminstate"`
-	OperStatus string     `json:"operstatus"`
-	DeviceId   string     `json:"deviceid"`
-	Peers      []PeerPort `json:"peers"`
 }
 
 type DeviceFlowList struct {
@@ -150,58 +102,6 @@ var deviceOpts = DeviceOpts{}
 
 func RegisterDeviceCommands(parser *flags.Parser) {
 	parser.AddCommand("device", "device commands", "Commands to query and manipulate VOLTHA devices", &deviceOpts)
-}
-
-func (d *DeviceOutput) populateFrom(val *dynamic.Message) {
-	d.Id = val.GetFieldByName("id").(string)
-	d.Type = val.GetFieldByName("type").(string)
-	d.Root = val.GetFieldByName("root").(bool)
-	d.ParentId = val.GetFieldByName("parent_id").(string)
-	d.ParentPortNo = val.GetFieldByName("parent_port_no").(uint32)
-	d.Vendor = val.GetFieldByName("vendor").(string)
-	d.Model = val.GetFieldByName("model").(string)
-	d.HardwareVersion = val.GetFieldByName("hardware_version").(string)
-	d.FirmwareVersion = val.GetFieldByName("firmware_version").(string)
-	d.SerialNumber = val.GetFieldByName("serial_number").(string)
-	d.VendorId = val.GetFieldByName("vendor_id").(string)
-	d.Adapter = val.GetFieldByName("adapter").(string)
-	d.MacAddress = val.GetFieldByName("mac_address").(string)
-	d.Vlan = val.GetFieldByName("vlan").(uint32)
-	d.Address = val.GetFieldByName("host_and_port").(string)
-	if len(d.Address) == 0 {
-		d.Address = val.GetFieldByName("ipv4_address").(string)
-	}
-	if len(d.Address) == 0 {
-		d.Address = val.GetFieldByName("ipv6_address").(string)
-	}
-	if len(d.Address) == 0 {
-		d.Address = "unknown"
-	}
-	d.ExtraArgs = val.GetFieldByName("extra_args").(string)
-	proxy := val.GetFieldByName("proxy_address").(*dynamic.Message)
-	d.ProxyAddress = nil
-	if proxy != nil {
-		d.ProxyAddress = &ProxyAddress{
-			DeviceId:       proxy.GetFieldByName("device_id").(string),
-			ChannelId:      proxy.GetFieldByName("channel_id").(uint32),
-			ChannelGroupId: proxy.GetFieldByName("channel_group_id").(uint32),
-			OnuId:          proxy.GetFieldByName("onu_id").(uint32),
-			OnuSessionId:   proxy.GetFieldByName("onu_session_id").(uint32),
-		}
-		v, err := proxy.TryGetFieldByName("device_type")
-		if err == nil {
-			d.ProxyAddress.DeviceType = v.(string)
-		}
-		v, err = proxy.TryGetFieldByName("channel_termination")
-		if err == nil {
-			d.ProxyAddress.ChannelTermination = v.(string)
-		}
-
-	}
-	d.AdminState = GetEnumValue(val, "admin_state")
-	d.OperStatus = GetEnumValue(val, "oper_status")
-	d.Reason = val.GetFieldByName("reason").(string)
-	d.ConnectStatus = GetEnumValue(val, "connect_status")
 }
 
 func (options *DeviceList) Execute(args []string) error {
@@ -248,11 +148,10 @@ func (options *DeviceList) Execute(args []string) error {
 		outputFormat = "{{.Id}}"
 	}
 
-	data := make([]DeviceOutput, len(items.([]interface{})))
-
+	data := make([]model.Device, len(items.([]interface{})))
 	for i, item := range items.([]interface{}) {
 		val := item.(*dynamic.Message)
-		data[i].populateFrom(val)
+		data[i].PopulateFrom(val)
 	}
 
 	result := CommandResult{
@@ -460,22 +359,9 @@ func (options *DevicePortList) Execute(args []string) error {
 		outputFormat = "{{.Id}}"
 	}
 
-	data := make([]DevicePortOutput, len(items.([]interface{})))
+	data := make([]model.DevicePort, len(items.([]interface{})))
 	for i, item := range items.([]interface{}) {
-		val := item.(*dynamic.Message)
-		data[i].PortNo = val.GetFieldByName("port_no").(uint32)
-		data[i].Type = GetEnumValue(val, "type")
-		data[i].Label = val.GetFieldByName("label").(string)
-		data[i].AdminState = GetEnumValue(val, "admin_state")
-		data[i].OperStatus = GetEnumValue(val, "oper_status")
-		data[i].DeviceId = val.GetFieldByName("device_id").(string)
-		peers := val.GetFieldByName("peers").([]interface{})
-		data[i].Peers = make([]PeerPort, len(peers))
-		for j, peer := range peers {
-			p := peer.(*dynamic.Message)
-			data[i].Peers[j].DeviceId = p.GetFieldByName("device_id").(string)
-			data[i].Peers[j].PortNo = p.GetFieldByName("port_no").(uint32)
-		}
+		data[i].PopulateFrom(item.(*dynamic.Message))
 	}
 
 	result := CommandResult{
@@ -531,8 +417,8 @@ func (options *DeviceInspect) Execute(args []string) error {
 		return err
 	}
 
-	device := &DeviceOutput{}
-	device.populateFrom(d)
+	device := &model.Device{}
+	device.PopulateFrom(d)
 
 	outputFormat := CharReplacer.Replace(options.Format)
 	if outputFormat == "" {
