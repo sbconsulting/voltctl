@@ -14,7 +14,7 @@ be displayed as a customized/filtered table or as `JSON`.
 
 ## Build / Install
 To install the `voltctl` command you can use the following:
-```
+```bash
 mkdir myworkdir
 cd myworkdir
 export GOPATH=$(pwd)
@@ -25,6 +25,26 @@ cp ./voltctl <to any place you want in your path>
 ```
 
 `voltctl` has only been tested with `go` version 1.12.x.
+
+## Shell Completion
+`voltctl` supports shell completion for the `bash` shell. To enable
+shell Completion you can use the following command on *most* \*nix based system.
+```bash
+source <(voltctl completion bash)
+```
+
+If this does not work on your system, as is the case with the standard
+bash shell on MacOS, then you can try the following command:
+```bash
+source /dev/stdin <<<"$(voltctl completion bash)"
+```
+
+If you which to make `bash` shell completion automatic when you login to
+your account you can append the output of `voltctl completion bash` to
+your `$HOME/.bashrc`:
+```bash
+voltctl completion base >> $HOME/.bashrc
+```
 
 ## Configuration
 Currently the configuration only supports the specification of the VOLTHA
