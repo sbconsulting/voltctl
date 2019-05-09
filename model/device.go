@@ -56,6 +56,8 @@ type Device struct {
 	OperStatus      string        `json:"operstatus"`
 	Reason          string        `json:"reason"`
 	ConnectStatus   string        `json:"connectstatus"`
+	Ports           []DevicePort  `json:"ports"`
+	Flows           []Flow        `json:"flows"`
 }
 
 type DevicePort struct {
@@ -112,12 +114,27 @@ func (d *Device) PopulateFrom(val *dynamic.Message) {
 		if err == nil {
 			d.ProxyAddress.ChannelTermination = v.(string)
 		}
-
 	}
 	d.AdminState = GetEnumValue(val, "admin_state")
 	d.OperStatus = GetEnumValue(val, "oper_status")
 	d.Reason = val.GetFieldByName("reason").(string)
 	d.ConnectStatus = GetEnumValue(val, "connect_status")
+
+	ports := val.GetFieldByName("ports").([]interface{})
+	d.Ports = make([]DevicePort, len(ports))
+	for i, port := range ports {
+		d.Ports[i].PopulateFrom(port.(*dynamic.Message))
+	}
+	flows := val.GetFieldByName("flows").(*dynamic.Message)
+	if flows == nil {
+		d.Flows = make([]Flow, 0)
+	} else {
+		items := flows.GetFieldByName("items").([]interface{})
+		d.Flows = make([]Flow, len(items))
+		for i, flow := range items {
+			d.Flows[i].PopulateFrom(flow.(*dynamic.Message))
+		}
+	}
 }
 
 func (port *DevicePort) PopulateFrom(val *dynamic.Message) {

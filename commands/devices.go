@@ -405,7 +405,7 @@ func (options *DeviceInspect) Execute(args []string) error {
 	h := &RpcEventHandler{
 		Fields: map[string]map[string]interface{}{ParamNames[GlobalConfig.ApiVersion]["ID"]: {"id": options.Args.Id}},
 	}
-	err = grpcurl.InvokeRPC(ctx, descriptor, conn, method, []string{}, h, h.GetParams)
+	err = grpcurl.InvokeRPC(ctx, descriptor, conn, method, []string{"Get-Depth: 2"}, h, h.GetParams)
 	if err != nil {
 		return err
 	} else if h.Status != nil && h.Status.Err() != nil {
