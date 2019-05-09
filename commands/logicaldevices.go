@@ -23,6 +23,7 @@ import (
 	"github.com/fullstorydev/grpcurl"
 	flags "github.com/jessevdk/go-flags"
 	"github.com/jhump/protoreflect/dynamic"
+	"strings"
 )
 
 const (
@@ -34,25 +35,30 @@ const (
   SERIALNUMNER: {{.SerialNumber}}`
 )
 
+type LogicalDeviceId string
+
 type LogicalDeviceList struct {
 	OutputOptions
 }
 
 type LogicalDeviceFlowList struct {
-	FlowList
+	OutputOptions
+	Args struct {
+		Id LogicalDeviceId `positional-arg-name:"DEVICE_ID" required:"yes"`
+	} `positional-args:"yes"`
 }
 
 type LogicalDevicePortList struct {
 	OutputOptions
 	Args struct {
-		Id string `positional-arg-name:"DEVICE_ID" required:"yes"`
+		Id LogicalDeviceId `positional-arg-name:"DEVICE_ID" required:"yes"`
 	} `positional-args:"yes"`
 }
 
 type LogicalDeviceInspect struct {
 	OutputOptionsJson
 	Args struct {
-		Id string `positional-arg-name:"DEVICE_ID" required:"yes"`
+		Id LogicalDeviceId `positional-arg-name:"DEVICE_ID" required:"yes"`
 	} `positional-args:"yes"`
 }
 
@@ -67,6 +73,53 @@ var logicalDeviceOpts = LogicalDeviceOpts{}
 
 func RegisterLogicalDeviceCommands(parser *flags.Parser) {
 	parser.AddCommand("logicaldevice", "logical device commands", "Commands to query and manipulate VOLTHA logical devices", &logicalDeviceOpts)
+}
+
+func (i *LogicalDeviceId) Complete(match string) []flags.Completion {
+	conn, err := NewConnection()
+	if err != nil {
+		return nil
+	}
+	defer conn.Close()
+
+	descriptor, method, err := GetMethod("logical-device-list")
+	if err != nil {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), GlobalConfig.Grpc.Timeout)
+	defer cancel()
+
+	h := &RpcEventHandler{}
+	err = grpcurl.InvokeRPC(ctx, descriptor, conn, method, []string{}, h, h.GetParams)
+	if err != nil {
+		return nil
+	}
+
+	if h.Status != nil && h.Status.Err() != nil {
+		return nil
+	}
+
+	d, err := dynamic.AsDynamicMessage(h.Response)
+	if err != nil {
+		return nil
+	}
+
+	items, err := d.TryGetFieldByName("items")
+	if err != nil {
+		return nil
+	}
+
+	list := make([]flags.Completion, 0)
+	for _, item := range items.([]interface{}) {
+		val := item.(*dynamic.Message)
+		id := val.GetFieldByName("id").(string)
+		if strings.HasPrefix(id, match) {
+			list = append(list, flags.Completion{Item: id})
+		}
+	}
+
+	return list
 }
 
 func (options *LogicalDeviceList) Execute(args []string) error {
@@ -194,7 +247,7 @@ func (options *LogicalDevicePortList) Execute(args []string) error {
 func (options *LogicalDeviceFlowList) Execute(args []string) error {
 	fl := &FlowList{}
 	fl.OutputOptions = options.OutputOptions
-	fl.Args = options.Args
+	fl.Args.Id = string(options.Args.Id)
 	fl.Method = "logical-device-flow-list"
 	return fl.Execute(args)
 }

@@ -85,6 +85,30 @@ type DevicePortList struct {
 	} `positional-args:"yes"`
 }
 
+type DeviceInspect struct {
+	OutputOptionsJson
+	Args struct {
+		Id DeviceId `positional-arg-name:"DEVICE_ID" required:"yes"`
+	} `positional-args:"yes"`
+}
+
+type DeviceOpts struct {
+	List    DeviceList     `command:"list"`
+	Create  DeviceCreate   `command:"create"`
+	Delete  DeviceDelete   `command:"delete"`
+	Enable  DeviceEnable   `command:"enable"`
+	Disable DeviceDisable  `command:"disable"`
+	Flows   DeviceFlowList `command:"flows"`
+	Ports   DevicePortList `command:"ports"`
+	Inspect DeviceInspect  `command:"inspect"`
+}
+
+var deviceOpts = DeviceOpts{}
+
+func RegisterDeviceCommands(parser *flags.Parser) {
+	parser.AddCommand("device", "device commands", "Commands to query and manipulate VOLTHA devices", &deviceOpts)
+}
+
 func (i *DeviceId) Complete(match string) []flags.Completion {
 	conn, err := NewConnection()
 	if err != nil {
@@ -130,30 +154,6 @@ func (i *DeviceId) Complete(match string) []flags.Completion {
 	}
 
 	return list
-}
-
-type DeviceInspect struct {
-	OutputOptionsJson
-	Args struct {
-		Id DeviceId `positional-arg-name:"DEVICE_ID" required:"yes"`
-	} `positional-args:"yes"`
-}
-
-type DeviceOpts struct {
-	List    DeviceList     `command:"list"`
-	Create  DeviceCreate   `command:"create"`
-	Delete  DeviceDelete   `command:"delete"`
-	Enable  DeviceEnable   `command:"enable"`
-	Disable DeviceDisable  `command:"disable"`
-	Flows   DeviceFlowList `command:"flows"`
-	Ports   DevicePortList `command:"ports"`
-	Inspect DeviceInspect  `command:"inspect"`
-}
-
-var deviceOpts = DeviceOpts{}
-
-func RegisterDeviceCommands(parser *flags.Parser) {
-	parser.AddCommand("device", "device commands", "Commands to query and manipulate VOLTHA devices", &deviceOpts)
 }
 
 func (options *DeviceList) Execute(args []string) error {
