@@ -73,7 +73,7 @@ func TestTableFormat(t *testing.T) {
 	got := &strings.Builder{}
 	format := Format("table{{.Field1}}\t{{.Field2}}\t{{.Field3}}\t{{.Field4}}\t{{.Field5}}\t{{.Field6}}\t{{.Field7.Value}}\t{{.Field8}}\t{{.Field9}}")
 	data := generateTestData(10)
-	err := format.Execute(got, true, data)
+	err := format.Execute(got, true, 1, data)
 	if err != nil {
 		t.Errorf("%s: unexpected error result: %s", t.Name(), err)
 	}
@@ -99,7 +99,7 @@ func TestNoTableFormat(t *testing.T) {
 	got := &strings.Builder{}
 	format := Format("{{.Field1}},{{.Field2}},{{.Field3}},{{.Field4}},{{.Field5}},{{.Field6}},{{.Field7.Value}},{{.Field8}},{{.Field9}}")
 	data := generateTestData(10)
-	err := format.Execute(got, false, data)
+	err := format.Execute(got, false, 0, data)
 	if err != nil {
 		t.Errorf("%s: unexpected error result: %s", t.Name(), err)
 	}
@@ -117,7 +117,7 @@ func TestTableSingleFormat(t *testing.T) {
 	got := &strings.Builder{}
 	format := Format("table{{.Field1}}\t{{.Field2}}\t{{.Field3}}\t{{.Field4}}\t{{.Field5}}\t{{.Field6}}\t{{.Field7.Value}}\t{{.Field8}}\t{{.Field9}}")
 	data := generateTestData(1)
-	err := format.Execute(got, true, data[0])
+	err := format.Execute(got, true, 1, data[0])
 	if err != nil {
 		t.Errorf("%s: unexpected error result: %s", t.Name(), err)
 	}
@@ -133,7 +133,7 @@ func TestNoTableSingleFormat(t *testing.T) {
 	got := &strings.Builder{}
 	format := Format("{{.Field1}},{{.Field2}},{{.Field3}},{{.Field4}},{{.Field5}},{{.Field6}},{{.Field7.Value}},{{.Field8}},{{.Field9}}")
 	data := generateTestData(1)
-	err := format.Execute(got, false, data[0])
+	err := format.Execute(got, false, 0, data[0])
 	if err != nil {
 		t.Errorf("%s: unexpected error result: %s", t.Name(), err)
 	}
@@ -148,7 +148,7 @@ func TestBadFormat(t *testing.T) {
 	format := Format("table{{.Field1}\t{{.Field2}}\t{{.Field3}}\t{{.Field4}}\t{{.Field5}}\t{{.Field6}}\t{{.Field7.Value}}\t{{.Field8}}\t{{.Field9}}")
 	got := &strings.Builder{}
 	data := generateTestData(10)
-	err := format.Execute(got, true, data)
+	err := format.Execute(got, true, 0, data)
 	if err == nil {
 		t.Errorf("%s: expected error (bad format) got none", t.Name())
 	}

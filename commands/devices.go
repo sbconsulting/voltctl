@@ -26,24 +26,55 @@ import (
 )
 
 const (
-	DEFAULT_DEVICE_FORMAT       = "table{{ .Id }}\t{{.Type}}\t{{.Root}}\t{{.ParentId}}\t{{.SerialNumber}}\t{{.Vlan}}\t{{.AdminState}}\t{{.OperStatus}}\t{{.ConnectStatus}}"
-	DEFAULT_DEVICE_PORTS_FORMAT = "table{{.PortNo}}\t{{.Label}}\t{{.Type}}\t{{.AdminState}}\t{{.OperStatus}}\t{{.DeviceId}}\t{{.Peers}}"
+	DEFAULT_DEVICE_FORMAT         = "table{{ .Id }}\t{{.Type}}\t{{.Root}}\t{{.ParentId}}\t{{.SerialNumber}}\t{{.Vlan}}\t{{.AdminState}}\t{{.OperStatus}}\t{{.ConnectStatus}}"
+	DEFAULT_DEVICE_PORTS_FORMAT   = "table{{.PortNo}}\t{{.Label}}\t{{.Type}}\t{{.AdminState}}\t{{.OperStatus}}\t{{.DeviceId}}\t{{.Peers}}"
+	DEFAULT_DEVICE_INSPECT_FORMAT = `ID: {{.Id}}
+  TYPE:          {{.Type}}
+  ROOT:          {{.Root}}
+  PARENTID:      {{.ParentId}}
+  SERIALNUMBER:  {{.SerialNumber}}
+  VLAN:          {{.Vlan}}
+  ADMINSTATE:    {{.AdminState}}
+  OPERSTATUS:    {{.OperStatus}}
+  CONNECTSTATUS: {{.ConnectStatus}}`
 )
 
 type DeviceList struct {
 	OutputOptions
 }
 
-type DeviceListOutput struct {
-	Id            string `json:"id"`
-	Type          string `json:"type"`
-	Root          bool   `json:"root"`
-	ParentId      string `json:"parentid"`
-	SerialNumber  string `json:"serialnumber"`
-	Vlan          uint32 `json:"vlan"`
-	AdminState    string `json:"adminstate"`
-	OperStatus    string `json:"operstatus"`
-	ConnectStatus string `json:"connectstatus"`
+type ProxyAddress struct {
+	DeviceId           string `json:"deviceId"`
+	DeviceType         string `json:"devicetype,omitempty"`
+	ChannelId          uint32 `json:"channelid"`
+	ChannelGroupId     uint32 `json:"channelgroup"`
+	ChannelTermination string `json:"channeltermination,omitempty"`
+	OnuId              uint32 `json:"onuid"`
+	OnuSessionId       uint32 `json:"onusessionid"`
+}
+
+type DeviceOutput struct {
+	Id              string        `json:"id"`
+	Type            string        `json:"type"`
+	Root            bool          `json:"root"`
+	ParentId        string        `json:"parentid"`
+	ParentPortNo    uint32        `json:"parentportno"`
+	Vendor          string        `json:"vendor"`
+	Model           string        `json:"model"`
+	HardwareVersion string        `json:hardwareversion"`
+	FirmwareVersion string        `json:firmwareversion"`
+	SerialNumber    string        `json:"serialnumber"`
+	VendorId        string        `json:"vendorid"`
+	Adapter         string        `json:"adapter"`
+	Vlan            uint32        `json:"vlan"`
+	MacAddress      string        `json:"macaddress"`
+	Address         string        `json:address"`
+	ExtraArgs       string        `json:"extraargs"`
+	ProxyAddress    *ProxyAddress `json:"proxyaddress,omitempty"`
+	AdminState      string        `json:"adminstate"`
+	OperStatus      string        `json:"operstatus"`
+	Reason          string        `json:"reason"`
+	ConnectStatus   string        `json:"connectstatus"`
 }
 
 type DeviceCreate struct {
@@ -97,6 +128,13 @@ type DevicePortList struct {
 	} `positional-args:"yes"`
 }
 
+type DeviceInspect struct {
+	OutputOptionsJson
+	Args struct {
+		Id string `positional-arg-name:"DEVICE_ID" required:"yes"`
+	} `positional-args:"yes"`
+}
+
 type DeviceOpts struct {
 	List    DeviceList     `command:"list"`
 	Create  DeviceCreate   `command:"create"`
@@ -105,12 +143,65 @@ type DeviceOpts struct {
 	Disable DeviceDisable  `command:"disable"`
 	Flows   DeviceFlowList `command:"flows"`
 	Ports   DevicePortList `command:"ports"`
+	Inspect DeviceInspect  `command:"inspect"`
 }
 
 var deviceOpts = DeviceOpts{}
 
 func RegisterDeviceCommands(parser *flags.Parser) {
 	parser.AddCommand("device", "device commands", "Commands to query and manipulate VOLTHA devices", &deviceOpts)
+}
+
+func (d *DeviceOutput) populateFrom(val *dynamic.Message) {
+	d.Id = val.GetFieldByName("id").(string)
+	d.Type = val.GetFieldByName("type").(string)
+	d.Root = val.GetFieldByName("root").(bool)
+	d.ParentId = val.GetFieldByName("parent_id").(string)
+	d.ParentPortNo = val.GetFieldByName("parent_port_no").(uint32)
+	d.Vendor = val.GetFieldByName("vendor").(string)
+	d.Model = val.GetFieldByName("model").(string)
+	d.HardwareVersion = val.GetFieldByName("hardware_version").(string)
+	d.FirmwareVersion = val.GetFieldByName("firmware_version").(string)
+	d.SerialNumber = val.GetFieldByName("serial_number").(string)
+	d.VendorId = val.GetFieldByName("vendor_id").(string)
+	d.Adapter = val.GetFieldByName("adapter").(string)
+	d.MacAddress = val.GetFieldByName("mac_address").(string)
+	d.Vlan = val.GetFieldByName("vlan").(uint32)
+	d.Address = val.GetFieldByName("host_and_port").(string)
+	if len(d.Address) == 0 {
+		d.Address = val.GetFieldByName("ipv4_address").(string)
+	}
+	if len(d.Address) == 0 {
+		d.Address = val.GetFieldByName("ipv6_address").(string)
+	}
+	if len(d.Address) == 0 {
+		d.Address = "unknown"
+	}
+	d.ExtraArgs = val.GetFieldByName("extra_args").(string)
+	proxy := val.GetFieldByName("proxy_address").(*dynamic.Message)
+	d.ProxyAddress = nil
+	if proxy != nil {
+		d.ProxyAddress = &ProxyAddress{
+			DeviceId:       proxy.GetFieldByName("device_id").(string),
+			ChannelId:      proxy.GetFieldByName("channel_id").(uint32),
+			ChannelGroupId: proxy.GetFieldByName("channel_group_id").(uint32),
+			OnuId:          proxy.GetFieldByName("onu_id").(uint32),
+			OnuSessionId:   proxy.GetFieldByName("onu_session_id").(uint32),
+		}
+		v, err := proxy.TryGetFieldByName("device_type")
+		if err == nil {
+			d.ProxyAddress.DeviceType = v.(string)
+		}
+		v, err = proxy.TryGetFieldByName("channel_termination")
+		if err == nil {
+			d.ProxyAddress.ChannelTermination = v.(string)
+		}
+
+	}
+	d.AdminState = GetEnumValue(val, "admin_state")
+	d.OperStatus = GetEnumValue(val, "oper_status")
+	d.Reason = val.GetFieldByName("reason").(string)
+	d.ConnectStatus = GetEnumValue(val, "connect_status")
 }
 
 func (options *DeviceList) Execute(args []string) error {
@@ -157,19 +248,11 @@ func (options *DeviceList) Execute(args []string) error {
 		outputFormat = "{{.Id}}"
 	}
 
-	data := make([]DeviceListOutput, len(items.([]interface{})))
+	data := make([]DeviceOutput, len(items.([]interface{})))
 
 	for i, item := range items.([]interface{}) {
 		val := item.(*dynamic.Message)
-		data[i].Id = val.GetFieldByName("id").(string)
-		data[i].Type = val.GetFieldByName("type").(string)
-		data[i].Root = val.GetFieldByName("root").(bool)
-		data[i].ParentId = val.GetFieldByName("parent_id").(string)
-		data[i].SerialNumber = val.GetFieldByName("serial_number").(string)
-		data[i].Vlan = val.GetFieldByName("vlan").(uint32)
-		data[i].AdminState = GetEnumValue(val, "admin_state")
-		data[i].OperStatus = GetEnumValue(val, "oper_status")
-		data[i].ConnectStatus = GetEnumValue(val, "connect_status")
+		data[i].populateFrom(val)
 	}
 
 	result := CommandResult{
@@ -412,4 +495,59 @@ func (options *DeviceFlowList) Execute(args []string) error {
 	fl.Args = options.Args
 	fl.Method = "device-flow-list"
 	return fl.Execute(args)
+}
+
+func (options *DeviceInspect) Execute(args []string) error {
+	if len(args) > 0 {
+		return fmt.Errorf("only a single argument 'DEVICE_ID' can be provided")
+	}
+
+	conn, err := NewConnection()
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	descriptor, method, err := GetMethod("device-inspect")
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), GlobalConfig.Grpc.Timeout)
+	defer cancel()
+
+	h := &RpcEventHandler{
+		Fields: map[string]map[string]interface{}{ParamNames[GlobalConfig.ApiVersion]["ID"]: {"id": options.Args.Id}},
+	}
+	err = grpcurl.InvokeRPC(ctx, descriptor, conn, method, []string{}, h, h.GetParams)
+	if err != nil {
+		return err
+	} else if h.Status != nil && h.Status.Err() != nil {
+		return h.Status.Err()
+	}
+
+	d, err := dynamic.AsDynamicMessage(h.Response)
+	if err != nil {
+		return err
+	}
+
+	device := &DeviceOutput{}
+	device.populateFrom(d)
+
+	outputFormat := CharReplacer.Replace(options.Format)
+	if outputFormat == "" {
+		outputFormat = DEFAULT_DEVICE_INSPECT_FORMAT
+	}
+	if options.Quiet {
+		outputFormat = "{{.Id}}"
+	}
+
+	result := CommandResult{
+		Format:    format.Format(outputFormat),
+		OutputAs:  toOutputType(options.OutputAs),
+		NameLimit: options.NameLimit,
+		Data:      device,
+	}
+	GenerateOutput(&result)
+	return nil
 }

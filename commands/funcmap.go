@@ -95,6 +95,10 @@ var functionMap = map[string]map[string]string{
 		"v1": "voltha.VolthaGlobalService/DisableDevice",
 		"v2": "voltha.VolthaService/DisableDevice",
 	},
+	"device-inspect": {
+		"v1": "voltha.VolthaGlobalService/GetDevice",
+		"v2": "voltha.VolthaService/GetDevice",
+	},
 	"device-flow-list": {
 		"v1": "voltha.VolthaGlobalService/ListDeviceFlows",
 		"v2": "voltha.VolthaService/ListDeviceFlows",

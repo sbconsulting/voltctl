@@ -98,6 +98,13 @@ type OutputOptions struct {
 	NameLimit int    `short:"l" long:"namelimit" default:"-1" description:"Limit the depth (length) in the table column name"`
 }
 
+type OutputOptionsJson struct {
+	Format    string `long:"format" value-name:"FORMAT" default:"" description:"Format to use to output structured data"`
+	Quiet     bool   `short:"q" long:"quiet" description:"Output only the IDs of the objects"`
+	OutputAs  string `short:"o" long:"outputas" default:"json" choice:"table" choice:"json" choice:"yaml" description:"Type of output to generate"`
+	NameLimit int    `short:"l" long:"namelimit" default:"-1" description:"Limit the depth (length) in the table column name"`
+}
+
 func toOutputType(in string) OutputType {
 	switch in {
 	case "table":

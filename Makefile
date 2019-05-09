@@ -1,5 +1,9 @@
 ifeq ($(GOPATH),)
-GOPATH=$(shell pwd)
+$(error "***** Please set your GOPATH environment variable")
+endif
+
+ifneq ($(GOPATH)/src/github.com/ciena/voltctl,$(shell pwd))
+$(warning "***** Your GOPATH environment variable may not be set correctly. Your current directory should be $$GOPATH/src/github.com/ciena/voltctl")
 endif
 
 help:
