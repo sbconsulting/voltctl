@@ -30,6 +30,8 @@ func (adapter *Adapter) PopulateFrom(val *dynamic.Message) {
 	adapter.Id = val.GetFieldByName("id").(string)
 	adapter.Vendor = val.GetFieldByName("vendor").(string)
 	adapter.Version = val.GetFieldByName("version").(string)
-	config := val.GetFieldByName("config")
-	adapter.LogLevel = GetEnumValue(config.(*dynamic.Message), "log_level")
+	var config *dynamic.Message = val.GetFieldByName("config").(*dynamic.Message)
+	if config != nil {
+		adapter.LogLevel = GetEnumValue(config, "log_level")
+	}
 }
