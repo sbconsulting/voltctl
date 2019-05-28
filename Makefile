@@ -27,7 +27,7 @@ commands/voltha_v2_pb.go: protosets/voltha_v2.pb
 encode-protosets: commands/voltha_v1_pb.go commands/voltha_v2_pb.go
 
 VERSION=$(shell cat $(GOPATH)/src/github.com/ciena/voltctl/VERSION)
-GITCOMMIT=$(shell git log --pretty=format:"%h" -n 1)
+GITCOMMIT=$(shell git rev-parse HEAD)
 ifeq ($(shell git ls-files --others --modified --exclude-standard 2>/dev/null | wc -l | sed -e 's/ //g'),0)
 GITDIRTY=false
 else
@@ -40,8 +40,8 @@ BUILDTIME=$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 LDFLAGS=-ldflags \
 	'-X "github.com/ciena/voltctl/cli/version.Version=$(VERSION)"  \
-	 -X "github.com/ciena/voltctl/cli/version.GitCommit=$(GITCOMMIT)"  \
-	 -X "github.com/ciena/voltctl/cli/version.GitDirty=$(GITDIRTY)"  \
+	 -X "github.com/ciena/voltctl/cli/version.VcsRef=$(GITCOMMIT)"  \
+	 -X "github.com/ciena/voltctl/cli/version.VcsDirty=$(GITDIRTY)"  \
 	 -X "github.com/ciena/voltctl/cli/version.GoVersion=$(GOVERSION)"  \
 	 -X "github.com/ciena/voltctl/cli/version.Os=$(OSTYPE)" \
 	 -X "github.com/ciena/voltctl/cli/version.Arch=$(OSARCH)" \

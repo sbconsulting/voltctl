@@ -32,6 +32,7 @@ func main() {
 	commands.RegisterAdapterCommands(parser)
 	commands.RegisterDeviceCommands(parser)
 	commands.RegisterLogicalDeviceCommands(parser)
+	commands.RegisterDeviceGroupCommands(parser)
 	commands.RegisterVersionCommands(parser)
 	commands.RegisterCompletionCommands(parser)
 	commands.RegisterConfigCommands(parser)

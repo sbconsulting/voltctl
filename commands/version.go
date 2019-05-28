@@ -17,6 +17,7 @@ package commands
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/ciena/voltctl/cli/version"
 	"github.com/ciena/voltctl/format"
 	"github.com/fullstorydev/grpcurl"
@@ -28,8 +29,8 @@ import (
 type VersionDetails struct {
 	Version   string `json:"version"`
 	GoVersion string `json:"goversion"`
-	GitCommit string `json:"gitcommit"`
-	GitDirty  string `json:"gitdirty"`
+	VcsRef    string `json:"gitcommit"`
+	VcsDirty  string `json:"gitdirty"`
 	BuildTime string `json:"buildtime"`
 	Os        string `json:"os"`
 	Arch      string `json:"arch"`
@@ -50,8 +51,8 @@ var versionInfo = VersionOutput{
 	Client: VersionDetails{
 		Version:   version.Version,
 		GoVersion: version.GoVersion,
-		GitCommit: version.GitCommit,
-		GitDirty:  version.GitDirty,
+		VcsRef:    version.VcsRef,
+		VcsDirty:  version.VcsDirty,
 		Os:        version.Os,
 		Arch:      version.Arch,
 		BuildTime: version.BuildTime,
@@ -59,8 +60,8 @@ var versionInfo = VersionOutput{
 	Cluster: VersionDetails{
 		Version:   "unknown-version",
 		GoVersion: "unknown-goversion",
-		GitCommit: "unknown-gitcommit",
-		GitDirty:  "unknown-gitdirty",
+		VcsRef:    "unknown-vcsref",
+		VcsDirty:  "unknown-vcsdirty",
 		Os:        "unknown-os",
 		Arch:      "unknown-arch",
 		BuildTime: "unknown-buildtime",
@@ -74,16 +75,16 @@ func RegisterVersionCommands(parent *flags.Parser) {
 const DefaultFormat = `Client:
  Version        {{.Client.Version}}
  Go version:    {{.Client.GoVersion}}
- Git commit:    {{.Client.GitCommit}}
- Git dirty:     {{.Client.GitDirty}}
+ Vcs reference: {{.Client.VcsRef}}
+ Vcs dirty:     {{.Client.VcsDirty}}
  Built:         {{.Client.BuildTime}}
  OS/Arch:       {{.Client.Os}}/{{.Client.Arch}}
 
 Cluster:
  Version        {{.Cluster.Version}}
  Go version:    {{.Cluster.GoVersion}}
- Git commit:    {{.Cluster.GitCommit}}
- Git dirty:     {{.Cluster.GitDirty}}
+ Vcs feference: {{.Cluster.VcsRef}}
+ Vcs dirty:     {{.Cluster.VcsDirty}}
  Built:         {{.Cluster.BuildTime}}
  OS/Arch:       {{.Cluster.Os}}/{{.Cluster.Arch}}
 `
@@ -121,7 +122,54 @@ func (options *VersionOpts) Execute(args []string) error {
 		return err
 	}
 
-	versionInfo.Cluster.Version = strings.ReplaceAll(version.(string), "\n", "")
+	info := make(map[string]interface{})
+	err = json.Unmarshal([]byte(version.(string)), &info)
+	if err != nil {
+		versionInfo.Cluster.Version = strings.ReplaceAll(version.(string), "\n", "")
+	} else {
+		var ok bool
+		if _, ok = info["version"]; ok {
+			versionInfo.Cluster.Version = info["version"].(string)
+		} else {
+			versionInfo.Cluster.Version = "unknown-version"
+		}
+
+		if _, ok = info["goversion"]; ok {
+			versionInfo.Cluster.GoVersion = info["goversion"].(string)
+		} else {
+			versionInfo.Cluster.GoVersion = "unknown-goversion"
+		}
+
+		if _, ok = info["vcsref"]; ok {
+			versionInfo.Cluster.VcsRef = info["vcsref"].(string)
+		} else {
+			versionInfo.Cluster.VcsRef = "unknown-vcsref"
+		}
+
+		if _, ok = info["vcsdirty"]; ok {
+			versionInfo.Cluster.VcsDirty = info["vcsdirty"].(string)
+		} else {
+			versionInfo.Cluster.VcsDirty = "unknown-vcsdirty"
+		}
+
+		if _, ok = info["buildtime"]; ok {
+			versionInfo.Cluster.BuildTime = info["buildtime"].(string)
+		} else {
+			versionInfo.Cluster.BuildTime = "unknown-buildtime"
+		}
+
+		if _, ok = info["os"]; ok {
+			versionInfo.Cluster.Os = info["os"].(string)
+		} else {
+			versionInfo.Cluster.Os = "unknown-os"
+		}
+
+		if _, ok = info["arch"]; ok {
+			versionInfo.Cluster.Arch = info["arch"].(string)
+		} else {
+			versionInfo.Cluster.Arch = "unknown-arch"
+		}
+	}
 
 	outputFormat := CharReplacer.Replace(options.Format)
 	if outputFormat == "" {

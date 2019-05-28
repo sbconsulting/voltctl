@@ -21,8 +21,8 @@ package version
 var (
 	Version   = "unknown-version"
 	GoVersion = "unknown-goversion"
-	GitCommit = "unknown-gitcommit"
-	GitDirty  = "unknown-gitdirty"
+	VcsRef    = "unknown-vcsref"
+	VcsDirty  = "unknown-vcsdirty"
 	BuildTime = "unknown-buildtime"
 	Os        = "unknown-os"
 	Arch      = "unknown-arch"
