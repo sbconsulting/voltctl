@@ -93,6 +93,7 @@ var (
 
 type OutputOptions struct {
 	Format    string `long:"format" value-name:"FORMAT" default:"" description:"Format to use to output structured data"`
+	Filter    string `short:"f" long:"filter" default:"" description:"Only display results that match filter"`
 	Quiet     bool   `short:"q" long:"quiet" description:"Output only the IDs of the objects"`
 	OutputAs  string `short:"o" long:"outputas" default:"table" choice:"table" choice:"json" choice:"yaml" description:"Type of output to generate"`
 	NameLimit int    `short:"l" long:"namelimit" default:"-1" description:"Limit the depth (length) in the table column name"`
@@ -100,6 +101,7 @@ type OutputOptions struct {
 
 type OutputOptionsJson struct {
 	Format    string `long:"format" value-name:"FORMAT" default:"" description:"Format to use to output structured data"`
+	Filter    string `short:"f" long:"filter" default:"" description:"Only display results that match filter"`
 	Quiet     bool   `short:"q" long:"quiet" description:"Output only the IDs of the objects"`
 	OutputAs  string `short:"o" long:"outputas" default:"json" choice:"table" choice:"json" choice:"yaml" description:"Type of output to generate"`
 	NameLimit int    `short:"l" long:"namelimit" default:"-1" description:"Limit the depth (length) in the table column name"`
@@ -167,17 +169,28 @@ func NewConnection() (*grpc.ClientConn, error) {
 
 func GenerateOutput(result *CommandResult) {
 	if result != nil && result.Data != nil {
+		data := result.Data
+		if result.Filter != "" {
+			filter, err := filter.Parse(result.filter)
+			if err != nil {
+				panic(err)
+			}
+			data, err = filter.Process(data)
+			if err != nil {
+				panic(err)
+			}
+		}
 		if result.OutputAs == OUTPUT_TABLE {
 			tableFormat := format.Format(result.Format)
-			tableFormat.Execute(os.Stdout, true, result.NameLimit, result.Data)
+			tableFormat.Execute(os.Stdout, true, result.NameLimit, data)
 		} else if result.OutputAs == OUTPUT_JSON {
-			asJson, err := json.Marshal(&result.Data)
+			asJson, err := json.Marshal(&data)
 			if err != nil {
 				panic(err)
 			}
 			fmt.Printf("%s", asJson)
 		} else if result.OutputAs == OUTPUT_YAML {
-			asYaml, err := yaml.Marshal(&result.Data)
+			asYaml, err := yaml.Marshal(&data)
 			if err != nil {
 				panic(err)
 			}
