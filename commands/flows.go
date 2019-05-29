@@ -51,11 +51,13 @@ var (
 		"UnsupportedMatch":       35,
 		"InPort":                 40,
 		"VlanId":                 50,
+		"VlanPcp":                55,
 		"EthType":                60,
 		"IpProto":                70,
 		"UdpSrc":                 80,
 		"UdpDst":                 90,
 		"Metadata":               100,
+		"TunnelId":               101,
 		"UnsupportedInstruction": 102,
 		"UnsupportedAction":      105,
 		"UnsupportedSetField":    107,
@@ -64,6 +66,7 @@ var (
 		"PushVlanId":             130,
 		"Output":                 1000,
 		"GotoTable":              1010,
+		"ClearActions":           1020,
 	}
 )
 

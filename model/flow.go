@@ -52,6 +52,9 @@ const (
 	FLOW_FIELD_PUSH_VLAN_ID
 	FLOW_FIELD_OUTPUT
 	FLOW_FIELD_GOTO_TABLE
+	FLOW_FIELD_CLEAR_ACTIONS
+	FLOW_FIELD_TUNNEL_ID
+	FLOW_FIELD_VLAN_PCP
 
 	FLOW_FIELD_HEADER = FLOW_FIELD_ID | FLOW_FIELD_TABLE_ID |
 		FLOW_FIELD_PRIORITY | FLOW_FIELD_COOKIE
@@ -90,6 +93,9 @@ var (
 		FLOW_FIELD_PUSH_VLAN_ID,
 		FLOW_FIELD_OUTPUT,
 		FLOW_FIELD_GOTO_TABLE,
+		FLOW_FIELD_CLEAR_ACTIONS,
+		FLOW_FIELD_TUNNEL_ID,
+		FLOW_FIELD_VLAN_PCP,
 	}
 )
 
@@ -176,6 +182,12 @@ func (f FlowFieldFlag) String() string {
 		return "Output"
 	case FLOW_FIELD_GOTO_TABLE:
 		return "GotoTable"
+	case FLOW_FIELD_CLEAR_ACTIONS:
+		return "ClearActions"
+	case FLOW_FIELD_TUNNEL_ID:
+		return "TunnelId"
+	case FLOW_FIELD_VLAN_PCP:
+		return "VlanPcp"
 	default:
 		return "UnknownFieldFlag"
 	}
@@ -216,6 +228,9 @@ type Flow struct {
 	PushVlanId             string `json:"pushvlanid,omitempty"`
 	Output                 string `json:"output,omitempty"`
 	GotoTable              string `json:"gototable,omitempty"`
+	ClearActions           string `json:"clear,omitempty"`
+	TunnelId               string `json:"tunnelid,omitempty"`
+	VlanPcp                string `json:"vlanpcp,omitempty"`
 
 	populated FlowFieldFlag
 }
@@ -312,6 +327,9 @@ func (f *Flow) PopulateFrom(val *dynamic.Message) {
 		case 6: // VLAN_ID
 			f.Set(FLOW_FIELD_VLAN_ID)
 			f.VlanId = toVlanId(basic.GetFieldByName("vlan_vid").(uint32))
+		case 7: // VLAN_PCP
+			f.Set(FLOW_FIELD_VLAN_PCP)
+			f.VlanPcp = fmt.Sprintf("%d", basic.GetFieldByName("vlan_pcp").(uint32))
 		case 10: // IP_PROTO
 			f.Set(FLOW_FIELD_IP_PROTO)
 			f.IpProto = fmt.Sprintf("%d", basic.GetFieldByName("ip_proto").(uint32))
@@ -321,6 +339,9 @@ func (f *Flow) PopulateFrom(val *dynamic.Message) {
 		case 16: // UDP_DST
 			f.Set(FLOW_FIELD_UDP_DST)
 			f.UdpDst = fmt.Sprintf("%d", basic.GetFieldByName("udp_dst").(uint32))
+		case 38: // TUNNEL_ID
+			f.Set(FLOW_FIELD_TUNNEL_ID)
+			f.TunnelId = fmt.Sprintf("%d", basic.GetFieldByName("tunnel_id").(uint64))
 		default:
 			/*
 			 * For unsupported match types put them into an
@@ -413,6 +434,10 @@ func (f *Flow) PopulateFrom(val *dynamic.Message) {
 						a.GetFieldByName("type").(int32))
 				}
 			}
+		case 5: // CLEAR_ACTIONS
+			// Following current CLI, just assigning empty list
+			f.Set(FLOW_FIELD_CLEAR_ACTIONS)
+			f.ClearActions = "[]"
 		default: // Unsupported
 			/*
 			 * For unsupported match types put them into an
