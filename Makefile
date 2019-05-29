@@ -34,8 +34,12 @@ else
 GITDIRTY=true
 endif
 GOVERSION=$(shell go version 2>&1 | sed -E  's/.*(go[0-9]+\.[0-9]+\.[0-9]+).*/\1/g')
-OSTYPE=$(shell uname -s | tr A-Z a-z)
-OSARCH=$(shell uname -p | tr A-Z a-z)
+HOST_OS=$(shell uname -s | tr A-Z a-z)
+ifeq ($(shell uname -m),x86_64)
+	HOST_ARCH ?= amd64
+else
+	HOST_ARCH ?= $(shell uname -m)
+endif
 BUILDTIME=$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 LDFLAGS=-ldflags \
@@ -43,31 +47,55 @@ LDFLAGS=-ldflags \
 	 -X "github.com/ciena/voltctl/cli/version.VcsRef=$(GITCOMMIT)"  \
 	 -X "github.com/ciena/voltctl/cli/version.VcsDirty=$(GITDIRTY)"  \
 	 -X "github.com/ciena/voltctl/cli/version.GoVersion=$(GOVERSION)"  \
-	 -X "github.com/ciena/voltctl/cli/version.Os=$(OSTYPE)" \
-	 -X "github.com/ciena/voltctl/cli/version.Arch=$(OSARCH)" \
+	 -X "github.com/ciena/voltctl/cli/version.Os=$(HOST_OS)" \
+	 -X "github.com/ciena/voltctl/cli/version.Arch=$(HOST_ARCH)" \
 	 -X "github.com/ciena/voltctl/cli/version.BuildTime=$(BUILDTIME)"'
 
-build:
-	GOPATH=$(GOPATH) go build $(LDFLAGS) \
+# Release related items
+# Generates binaries in $RELEASE_DIR with name $RELEASE_NAME-$RELEASE_OS_ARCH
+# Inspired by: https://github.com/kubernetes/minikube/releases
+RELEASE_DIR     ?= release
+RELEASE_NAME    ?= voltctl
+RELEASE_OS_ARCH ?= linux-amd64 windows-amd64 darwin-amd64
+RELEASE_BINS    := $(foreach rel,$(RELEASE_OS_ARCH),$(RELEASE_DIR)/$(RELEASE_NAME)-$(subst -dev,_dev,$(VERSION))-$(rel))
+
+# Functions to extract the OS/ARCH
+rel_ver   = $(word 2, $(subst -, ,$(notdir $@)))
+rel_os    = $(word 3, $(subst -, ,$(notdir $@)))
+rel_arch  = $(word 4, $(subst -, ,$(notdir $@)))
+
+dependencies:
+	[ -d "vendor" ] || dep ensure
+
+$(RELEASE_BINS): dependencies
+	mkdir -p $(RELEASE_DIR)
+	GOPATH=$(GOPATH) GOOS=$(rel_os) GOARCH=$(rel_arch) \
+	       go build -v $(LDFLAGS) -o "$@" cmd/voltctl.go
+
+release: $(RELEASE_BINS)
+
+build: dependencies
+	GOPATH=$(GOPATH) \
+	       go build $(LDFLAGS) \
 	       cmd/voltctl.go
 
-install:
+install: dependencies
 	GOPATH=$(GOPATH) GOBIN=$(GOPATH)/bin  go install $(LDFLAGS) \
 	       cmd/voltctl.go
 
-run:
+run: dependencies
 	GOPATH=$(GOPATH) go run $(LDFLAGS) github.com/ciena/voltctl/cmd $(CMD) 
 
-lint:
+lint: dependencies
 	GOPATH=$(GOPATH) find $(GOPATH)/src/github.com/ciena/voltctl -name "*.go" -not -path '$(GOPATH)/src/github.com/ciena/voltctl/vendor/*' | xargs gofmt -l
 	GOPATH=$(GOPATH) go vet github.com/ciena/voltctl/...
 	dep check
 
-test:
+test: dependencies
 	GOPATH=$(GOPATH) go test $(TEST_ARGS) -cover -coverprofile=voltctl.cp github.com/ciena/voltctl/...
 
 view-coverage:
 	GOPATH=$(GOPATH) go tool cover -html voltctl.cp
 
 clean:
-	rm -rf voltctl voltctl.cp
+	rm -rf voltctl voltctl.cp release

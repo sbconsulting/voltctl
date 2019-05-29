@@ -43,6 +43,7 @@ type VersionOutput struct {
 
 type VersionOpts struct {
 	OutputOptions
+	ClientOnly bool `long:"clientonly" description:"Display only client version information"`
 }
 
 var versionOpts = VersionOpts{}
@@ -69,8 +70,20 @@ var versionInfo = VersionOutput{
 }
 
 func RegisterVersionCommands(parent *flags.Parser) {
-	parent.AddCommand("version", "display version", "Display client and server version", &versionOpts)
+	_, err := parent.AddCommand("version", "display version", "Display client and server version", &versionOpts)
+	if err != nil {
+		panic(err)
+	}
 }
+
+const ClientOnlyFormat = `Client:
+ Version        {{.Version}}
+ Go version:    {{.GoVersion}}
+ Vcs reference: {{.VcsRef}}
+ Vcs dirty:     {{.VcsDirty}}
+ Built:         {{.BuildTime}}
+ OS/Arch:       {{.Os}}/{{.Arch}}
+`
 
 const DefaultFormat = `Client:
  Version        {{.Client.Version}}
@@ -89,7 +102,31 @@ Cluster:
  OS/Arch:       {{.Cluster.Os}}/{{.Cluster.Arch}}
 `
 
+func (options *VersionOpts) clientOnlyVersion(args []string) error {
+	outputFormat := CharReplacer.Replace(options.Format)
+	if outputFormat == "" {
+		outputFormat = ClientOnlyFormat
+	}
+	if options.Quiet {
+		outputFormat = "{{.Version}}"
+	}
+
+	result := CommandResult{
+		Format:    format.Format(outputFormat),
+		OutputAs:  toOutputType(options.OutputAs),
+		NameLimit: options.NameLimit,
+		Data:      versionInfo.Client,
+	}
+
+	GenerateOutput(&result)
+	return nil
+}
+
 func (options *VersionOpts) Execute(args []string) error {
+	if options.ClientOnly {
+		return options.clientOnlyVersion(args)
+	}
+
 	conn, err := NewConnection()
 	if err != nil {
 		return err
