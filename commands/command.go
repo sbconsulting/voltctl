@@ -18,7 +18,9 @@ package commands
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/ciena/voltctl/filter"
 	"github.com/ciena/voltctl/format"
+	"github.com/ciena/voltctl/order"
 	"google.golang.org/grpc"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
@@ -93,18 +95,28 @@ var (
 
 type OutputOptions struct {
 	Format    string `long:"format" value-name:"FORMAT" default:"" description:"Format to use to output structured data"`
-	Filter    string `short:"f" long:"filter" default:"" description:"Only display results that match filter"`
 	Quiet     bool   `short:"q" long:"quiet" description:"Output only the IDs of the objects"`
 	OutputAs  string `short:"o" long:"outputas" default:"table" choice:"table" choice:"json" choice:"yaml" description:"Type of output to generate"`
 	NameLimit int    `short:"l" long:"namelimit" default:"-1" description:"Limit the depth (length) in the table column name"`
 }
 
+type ListOutputOptions struct {
+	OutputOptions
+	Filter  string `short:"f" long:"filter" default:"" description:"Only display results that match filter"`
+	OrderBy string `short:"r" long:"orderby" default:"" description:"Specify the sort order of the results"`
+}
+
 type OutputOptionsJson struct {
 	Format    string `long:"format" value-name:"FORMAT" default:"" description:"Format to use to output structured data"`
-	Filter    string `short:"f" long:"filter" default:"" description:"Only display results that match filter"`
 	Quiet     bool   `short:"q" long:"quiet" description:"Output only the IDs of the objects"`
 	OutputAs  string `short:"o" long:"outputas" default:"json" choice:"table" choice:"json" choice:"yaml" description:"Type of output to generate"`
 	NameLimit int    `short:"l" long:"namelimit" default:"-1" description:"Limit the depth (length) in the table column name"`
+}
+
+type ListOutputOptionsJson struct {
+	OutputOptionsJson
+	Filter  string `short:"f" long:"filter" default:"" description:"Only display results that match filter"`
+	OrderBy string `short:"r" long:"orderby" default:"" description:"Specify the sort order of the results"`
 }
 
 func toOutputType(in string) OutputType {
@@ -122,6 +134,8 @@ func toOutputType(in string) OutputType {
 
 type CommandResult struct {
 	Format    format.Format
+	Filter    string
+	OrderBy   string
 	OutputAs  OutputType
 	NameLimit int
 	Data      interface{}
@@ -171,11 +185,21 @@ func GenerateOutput(result *CommandResult) {
 	if result != nil && result.Data != nil {
 		data := result.Data
 		if result.Filter != "" {
-			filter, err := filter.Parse(result.filter)
+			f, err := filter.Parse(result.Filter)
 			if err != nil {
 				panic(err)
 			}
-			data, err = filter.Process(data)
+			data, err = f.Process(data)
+			if err != nil {
+				panic(err)
+			}
+		}
+		if result.OrderBy != "" {
+			s, err := order.Parse(result.OrderBy)
+			if err != nil {
+				panic(err)
+			}
+			data, err = s.Process(data)
 			if err != nil {
 				panic(err)
 			}

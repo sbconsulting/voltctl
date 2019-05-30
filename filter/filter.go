@@ -32,6 +32,7 @@ const (
 	LT
 	GE
 	LE
+	RE
 )
 
 func toOp(op string) Operation {
@@ -48,6 +49,8 @@ func toOp(op string) Operation {
 		return GE
 	case "<=":
 		return LE
+	case "~":
+		return RE
 	default:
 		return UK
 	}
@@ -56,16 +59,18 @@ func toOp(op string) Operation {
 type FilterTerm struct {
 	Op    Operation
 	Value string
+	re    *regexp.Regexp
 }
 
 type Filter map[string]FilterTerm
 
-var termRE = regexp.MustCompile("^\\s*([a-zA-Z_][.a-zA-Z0-9_]*)\\s*(<=|>=|<|>|!=|=)\\s*(.+)\\s*$")
+var termRE = regexp.MustCompile("^\\s*([a-zA-Z_][.a-zA-Z0-9_]*)\\s*(~|<=|>=|<|>|!=|=)\\s*(.+)\\s*$")
 
 // Parse parses a comma separated list of filter terms
 func Parse(spec string) (Filter, error) {
 	filter := make(map[string]FilterTerm)
 	terms := strings.Split(spec, ",")
+	var err error
 
 	// Each term is in the form <key><op><value>
 	for _, term := range terms {
@@ -73,37 +78,36 @@ func Parse(spec string) (Filter, error) {
 		if parts == nil {
 			return nil, fmt.Errorf("Unable to parse filter term '%s'", term)
 		}
-		filter[parts[0][1]] = FilterTerm{
+		ft := FilterTerm{
 			Op:    toOp(parts[0][2]),
 			Value: parts[0][3],
 		}
+		if ft.Op == RE {
+			ft.re, err = regexp.Compile(ft.Value)
+			if err != nil {
+				return nil, fmt.Errorf("Unable to parse regexp filter value '%s'", ft.Value)
+			}
+		}
+		filter[parts[0][1]] = ft
 	}
 	return filter, nil
 }
 
 func (f Filter) Process(data interface{}) (interface{}, error) {
-	var list []interface{}
-	var islist bool
-	if list, islist = data.([]interface{}); !islist {
-		list = []interface{}{data}
+	slice := reflect.ValueOf(data)
+	if slice.Kind() != reflect.Slice {
+		if f.Evaluate(data) {
+			return data, nil
+		}
+		return nil, nil
 	}
 
-	// Now we have the data as a list, so we can processing it
-	// identically
 	var result []interface{}
-	for _, item := range list {
-		if f.Evaluate(item) {
-			result = append(result, item)
-		}
-	}
 
-	// If we were given a single item, make sure we return a single
-	// item or nil
-	if !islist {
-		if len(result) == 0 {
-			return nil, nil
+	for i := 0; i < slice.Len(); i++ {
+		if f.Evaluate(slice.Index(i).Interface()) {
+			result = append(result, slice.Index(i).Interface())
 		}
-		return result[0], nil
 	}
 
 	return result, nil
@@ -119,8 +123,13 @@ func (f Filter) Evaluate(item interface{}) bool {
 		}
 
 		switch v.Op {
+		case RE:
+			if !v.re.MatchString(fmt.Sprintf("%v", field)) {
+				return false
+			}
 		case EQ:
-			if field.String() != v.Value {
+			// This seems to work for most comparisons
+			if fmt.Sprintf("%v", field) != v.Value {
 				return false
 			}
 		default:

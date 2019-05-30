@@ -29,7 +29,7 @@ const (
 )
 
 type DeviceGroupList struct {
-	OutputOptions
+	ListOutputOptions
 }
 
 type DeviceGroupOpts struct {
@@ -95,6 +95,8 @@ func (options *DeviceGroupList) Execute(args []string) error {
 
 	result := CommandResult{
 		Format:    format.Format(outputFormat),
+		Filter:    options.Filter,
+		OrderBy:   options.OrderBy,
 		OutputAs:  toOutputType(options.OutputAs),
 		NameLimit: options.NameLimit,
 		Data:      data,

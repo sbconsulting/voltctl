@@ -1,7 +1,6 @@
 package filter
 
 import (
-	"github.com/ciena/voltctl/filter"
 	"testing"
 )
 
@@ -12,7 +11,7 @@ type TestFilterStruct struct {
 }
 
 func TestFilterList(t *testing.T) {
-	f, err := filter.Parse("One=a,Two=b")
+	f, err := Parse("One=a,Two=b")
 	if err != nil {
 		t.Errorf("Unable to parse filter: %s", err.Error())
 	}
@@ -54,7 +53,7 @@ func TestFilterList(t *testing.T) {
 }
 
 func TestFilterItem(t *testing.T) {
-	f, err := filter.Parse("One=a,Two=b")
+	f, err := Parse("One=a,Two=b")
 	if err != nil {
 		t.Errorf("Unable to parse filter: %s", err.Error())
 	}
@@ -77,53 +76,53 @@ func TestFilterItem(t *testing.T) {
 }
 
 func TestGoodFilters(t *testing.T) {
-	var f filter.Filter
+	var f Filter
 	var err error
-	f, err = filter.Parse("One=a,Two=b")
+	f, err = Parse("One=a,Two=b")
 	if err != nil {
 		t.Errorf("1. Unable to parse filter: %s", err.Error())
 	}
 	if len(f) != 2 ||
 		f["One"].Value != "a" ||
-		f["One"].Op != filter.EQ ||
+		f["One"].Op != EQ ||
 		f["Two"].Value != "b" ||
-		f["Two"].Op != filter.EQ {
+		f["Two"].Op != EQ {
 		t.Errorf("1. Filter did not parse correctly")
 	}
 
-	f, err = filter.Parse("One=a")
+	f, err = Parse("One=a")
 	if err != nil {
 		t.Errorf("2. Unable to parse filter: %s", err.Error())
 	}
 	if len(f) != 1 ||
 		f["One"].Value != "a" ||
-		f["One"].Op != filter.EQ {
+		f["One"].Op != EQ {
 		t.Errorf("2. Filter did not parse correctly")
 	}
 
-	f, err = filter.Parse("One<a")
+	f, err = Parse("One<a")
 	if err != nil {
 		t.Errorf("3. Unable to parse filter: %s", err.Error())
 	}
 	if len(f) != 1 ||
 		f["One"].Value != "a" ||
-		f["One"].Op != filter.LT {
+		f["One"].Op != LT {
 		t.Errorf("3. Filter did not parse correctly")
 	}
 
-	f, err = filter.Parse("One!=a")
+	f, err = Parse("One!=a")
 	if err != nil {
 		t.Errorf("4. Unable to parse filter: %s", err.Error())
 	}
 	if len(f) != 1 ||
 		f["One"].Value != "a" ||
-		f["One"].Op != filter.NE {
+		f["One"].Op != NE {
 		t.Errorf("4. Filter did not parse correctly")
 	}
 }
 
 func TestBadFilters(t *testing.T) {
-	_, err := filter.Parse("One~a")
+	_, err := Parse("One%a")
 	if err == nil {
 		t.Errorf("Parsed filter when it shouldn't have")
 	}
