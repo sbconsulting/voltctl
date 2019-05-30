@@ -27,7 +27,7 @@ import (
 )
 
 type FlowList struct {
-	OutputOptions
+	ListOutputOptions
 	Args struct {
 		Id string `positional-arg-name:"DEVICE_ID" required:"yes"`
 	} `positional-args:"yes"`
@@ -188,6 +188,8 @@ func (options *FlowList) Execute(args []string) error {
 
 	result := CommandResult{
 		Format:    format.Format(outputFormat),
+		Filter:    options.Filter,
+		OrderBy:   options.OrderBy,
 		OutputAs:  toOutputType(options.OutputAs),
 		NameLimit: options.NameLimit,
 		Data:      data,

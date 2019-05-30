@@ -41,7 +41,7 @@ const (
 )
 
 type DeviceList struct {
-	OutputOptions
+	ListOutputOptions
 }
 
 type DeviceCreate struct {
@@ -72,14 +72,14 @@ type DeviceDisable struct {
 }
 
 type DeviceFlowList struct {
-	OutputOptions
+	ListOutputOptions
 	Args struct {
 		Id DeviceId `positional-arg-name:"DEVICE_ID" required:"yes"`
 	} `positional-args:"yes"`
 }
 
 type DevicePortList struct {
-	OutputOptions
+	ListOutputOptions
 	Args struct {
 		Id DeviceId `positional-arg-name:"DEVICE_ID" required:"yes"`
 	} `positional-args:"yes"`
@@ -208,6 +208,8 @@ func (options *DeviceList) Execute(args []string) error {
 
 	result := CommandResult{
 		Format:    format.Format(outputFormat),
+		Filter:    options.Filter,
+		OrderBy:   options.OrderBy,
 		OutputAs:  toOutputType(options.OutputAs),
 		NameLimit: options.NameLimit,
 		Data:      data,
@@ -418,6 +420,8 @@ func (options *DevicePortList) Execute(args []string) error {
 
 	result := CommandResult{
 		Format:    format.Format(outputFormat),
+		Filter:    options.Filter,
+		OrderBy:   options.OrderBy,
 		OutputAs:  toOutputType(options.OutputAs),
 		NameLimit: options.NameLimit,
 		Data:      data,
@@ -429,7 +433,7 @@ func (options *DevicePortList) Execute(args []string) error {
 
 func (options *DeviceFlowList) Execute(args []string) error {
 	fl := &FlowList{}
-	fl.OutputOptions = options.OutputOptions
+	fl.ListOutputOptions = options.ListOutputOptions
 	fl.Args.Id = string(options.Args.Id)
 	fl.Method = "device-flow-list"
 	return fl.Execute(args)
