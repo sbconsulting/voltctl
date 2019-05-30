@@ -170,6 +170,11 @@ func (options *FlowList) Execute(args []string) error {
 		return err
 	}
 
+	if toOutputType(options.OutputAs) == OUTPUT_TABLE && (items == nil || len(items.([]interface{})) == 0) {
+		fmt.Println("*** NO FLOWS ***")
+		return nil
+	}
+
 	// Walk the flows and populate the output table
 	data := make([]model.Flow, len(items.([]interface{})))
 	var fieldset model.FlowFieldFlag
