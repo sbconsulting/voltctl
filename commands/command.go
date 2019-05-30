@@ -97,26 +97,26 @@ type OutputOptions struct {
 	Format    string `long:"format" value-name:"FORMAT" default:"" description:"Format to use to output structured data"`
 	Quiet     bool   `short:"q" long:"quiet" description:"Output only the IDs of the objects"`
 	OutputAs  string `short:"o" long:"outputas" default:"table" choice:"table" choice:"json" choice:"yaml" description:"Type of output to generate"`
-	NameLimit int    `short:"l" long:"namelimit" default:"-1" description:"Limit the depth (length) in the table column name"`
+	NameLimit int    `short:"l" long:"namelimit" default:"-1" value-name:"LIMIT" description:"Limit the depth (length) in the table column name"`
 }
 
 type ListOutputOptions struct {
 	OutputOptions
-	Filter  string `short:"f" long:"filter" default:"" description:"Only display results that match filter"`
-	OrderBy string `short:"r" long:"orderby" default:"" description:"Specify the sort order of the results"`
+	Filter  string `short:"f" long:"filter" default:"" value-name:"FILTER" description:"Only display results that match filter"`
+	OrderBy string `short:"r" long:"orderby" default:"" value-name:"ORDER" description:"Specify the sort order of the results"`
 }
 
 type OutputOptionsJson struct {
 	Format    string `long:"format" value-name:"FORMAT" default:"" description:"Format to use to output structured data"`
 	Quiet     bool   `short:"q" long:"quiet" description:"Output only the IDs of the objects"`
 	OutputAs  string `short:"o" long:"outputas" default:"json" choice:"table" choice:"json" choice:"yaml" description:"Type of output to generate"`
-	NameLimit int    `short:"l" long:"namelimit" default:"-1" description:"Limit the depth (length) in the table column name"`
+	NameLimit int    `short:"l" long:"namelimit" default:"-1" value-name:"LIMIT" description:"Limit the depth (length) in the table column name"`
 }
 
 type ListOutputOptionsJson struct {
 	OutputOptionsJson
-	Filter  string `short:"f" long:"filter" default:"" description:"Only display results that match filter"`
-	OrderBy string `short:"r" long:"orderby" default:"" description:"Specify the sort order of the results"`
+	Filter  string `short:"f" long:"filter" default:"" value-name:"FILTER" description:"Only display results that match filter"`
+	OrderBy string `short:"r" long:"orderby" default:"" value-name:"ORDER" description:"Specify the sort order of the results"`
 }
 
 func toOutputType(in string) OutputType {
