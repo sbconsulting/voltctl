@@ -127,3 +127,88 @@ func TestBadFilters(t *testing.T) {
 		t.Errorf("Parsed filter when it shouldn't have")
 	}
 }
+
+func TestSingleRecord(t *testing.T) {
+	f, err := Parse("One=d")
+	if err != nil {
+		t.Errorf("Unable to parse filter: %s", err.Error())
+	}
+
+	data := TestFilterStruct{
+		One:   "a",
+		Two:   "b",
+		Three: "c",
+	}
+
+	r, err := f.Process(data)
+	if err != nil {
+		t.Errorf("Error processing data")
+	}
+
+	if r != nil {
+		t.Errorf("expected no results, got some")
+	}
+}
+
+// Invalid fields are ignored (i.e. an error is returned, but need to
+// cover the code path in tests
+func TestInvalidField(t *testing.T) {
+	f, err := Parse("Four=a")
+	if err != nil {
+		t.Errorf("Unable to parse filter: %s", err.Error())
+	}
+
+	data := TestFilterStruct{
+		One:   "a",
+		Two:   "b",
+		Three: "c",
+	}
+
+	r, err := f.Process(data)
+	if err != nil {
+		t.Errorf("Error processing data")
+	}
+
+	if r != nil {
+		t.Errorf("expected no results, got some")
+	}
+}
+
+func TestREFilter(t *testing.T) {
+	var f Filter
+	var err error
+	f, err = Parse("One~a")
+	if err != nil {
+		t.Errorf("Unable to parse RE expression")
+	}
+	if len(f) != 1 {
+		t.Errorf("filter parsed incorrectly")
+	}
+
+	data := []interface{}{
+		TestFilterStruct{
+			One:   "a",
+			Two:   "b",
+			Three: "c",
+		},
+		TestFilterStruct{
+			One:   "1",
+			Two:   "2",
+			Three: "3",
+		},
+		TestFilterStruct{
+			One:   "a",
+			Two:   "b",
+			Three: "z",
+		},
+	}
+
+	f.Process(data)
+}
+
+func TestBadRE(t *testing.T) {
+	_, err := Parse("One~(qs*")
+	if err == nil {
+		t.Errorf("Expected RE parse error, got none")
+	}
+}
