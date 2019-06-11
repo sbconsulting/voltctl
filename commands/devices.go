@@ -71,6 +71,12 @@ type DeviceDisable struct {
 	} `positional-args:"yes"`
 }
 
+type DeviceReboot struct {
+	Args struct {
+		Ids []DeviceId `positional-arg-name:"DEVICE_ID" required:"yes"`
+	} `positional-args:"yes"`
+}
+
 type DeviceFlowList struct {
 	ListOutputOptions
 	Args struct {
@@ -101,6 +107,7 @@ type DeviceOpts struct {
 	Flows   DeviceFlowList `command:"flows"`
 	Ports   DevicePortList `command:"ports"`
 	Inspect DeviceInspect  `command:"inspect"`
+	Reboot  DeviceReboot   `command:"reboot"`
 }
 
 var deviceOpts = DeviceOpts{}
@@ -359,6 +366,39 @@ func (options *DeviceDisable) Execute(args []string) error {
 			continue
 		} else if h.Status != nil && h.Status.Err() != nil {
 			fmt.Printf("Error while disabling '%s': %s\n", i, h.Status.Err())
+			continue
+		}
+		fmt.Printf("%s\n", i)
+	}
+
+	return nil
+}
+
+func (options *DeviceReboot) Execute(args []string) error {
+	conn, err := NewConnection()
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	descriptor, method, err := GetMethod("device-reboot")
+	if err != nil {
+		return err
+	}
+
+	for _, i := range options.Args.Ids {
+		h := &RpcEventHandler{
+			Fields: map[string]map[string]interface{}{ParamNames[GlobalConfig.ApiVersion]["ID"]: {"id": i}},
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), GlobalConfig.Grpc.Timeout)
+		defer cancel()
+
+		err = grpcurl.InvokeRPC(ctx, descriptor, conn, method, []string{}, h, h.GetParams)
+		if err != nil {
+			fmt.Printf("Error while rebooting '%s': %s\n", i, err)
+			continue
+		} else if h.Status != nil && h.Status.Err() != nil {
+			fmt.Printf("Error while rebooting '%s': %s\n", i, h.Status.Err())
 			continue
 		}
 		fmt.Printf("%s\n", i)
