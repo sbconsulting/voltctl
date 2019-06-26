@@ -28,7 +28,7 @@ import (
 
 const (
 	DEFAULT_COMPONENT_FORMAT   = "table{{.Namespace}}\t{{.Id}}\t{{.Name}}\t{{.Component}}\t{{.Version}}\t{{.Ready}}\t{{.Restarts}}\t{{.Status}}\t{{.Age}}"
-	COMPONENT_LIST_KUBECTL_CMD = "kubectl get --all-namespaces pod -l app.kubernetes.io/part-of=voltha -L app.kubernetes.io/name,app.kubernetes.io/component,app.kubernetes.io/version,helm.sh/chart"
+	COMPONENT_LIST_KUBECTL_CMD = "kubectl get --all-namespaces pod -l app.kubernetes.io/part-of=voltha -L app.kubernetes.io/name,app.kubernetes.io/component,app.kubernetes.io/version"
 )
 
 type ComponentList struct {
@@ -59,7 +59,6 @@ func (options *ComponentList) Execute(args []string) error {
 
 	// use the current context in kubeconfig
 	config, err := clientcmd.BuildConfigFromFlags("", GlobalOptions.K8sConfig)
-	fmt.Println(GlobalOptions.K8sConfig)
 	if err != nil {
 		panic(err.Error())
 	}
