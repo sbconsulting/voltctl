@@ -36,6 +36,7 @@ func main() {
 	commands.RegisterVersionCommands(parser)
 	commands.RegisterCompletionCommands(parser)
 	commands.RegisterConfigCommands(parser)
+	commands.RegisterComponentCommands(parser)
 
 	_, err = parser.ParseArgs(os.Args[1:])
 	if err != nil {

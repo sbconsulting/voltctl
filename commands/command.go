@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -55,6 +56,7 @@ type GlobalConfigSpec struct {
 	Server     string         `yaml:"server"`
 	Tls        TlsConfigSpec  `yaml:"tls"`
 	Grpc       GrpcConfigSpec `yaml:"grpc"`
+	K8sConfig  string         `yaml:"-"`
 }
 
 var (
@@ -90,6 +92,7 @@ var (
 		Cert       string `long:"tlscert" value-name:"CERT_FILE" description:"Path to TLS vertificate file"`
 		Key        string `long:"tlskey" value-name:"KEY_FILE" description:"Path to TLS key file"`
 		Verify     bool   `long:"tlsverify" description:"Use TLS and verify the remote"`
+		K8sConfig  string `short:"8" long:"k8sconfig" env:"KUBECONFIG" value-name:"FILE" default:"" description:"Location of Kubernetes config file"`
 	}
 )
 
@@ -151,8 +154,9 @@ func ProcessGlobalOptions() {
 		home, err := os.UserHomeDir()
 		if err != nil {
 			log.Printf("Unable to discover they users home directory: %s\n", err)
+			home = "~"
 		}
-		GlobalOptions.Config = fmt.Sprintf("%s/.volt/config", home)
+		GlobalOptions.Config = filepath.Join(home, ".volt", "config")
 	}
 
 	info, err := os.Stat(GlobalOptions.Config)
@@ -173,6 +177,17 @@ func ProcessGlobalOptions() {
 	}
 	if GlobalOptions.ApiVersion != "" {
 		GlobalConfig.ApiVersion = GlobalOptions.ApiVersion
+	}
+
+	// If a k8s cert/key were not specified, then attempt to read it from
+	// any $HOME/.kube/config if it exists
+	if len(GlobalOptions.K8sConfig) == 0 {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			log.Printf("Unable to discover the user's home directory: %s\n", err)
+			home = "~"
+		}
+		GlobalOptions.K8sConfig = filepath.Join(home, ".kube", "config")
 	}
 }
 
