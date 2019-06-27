@@ -43,13 +43,13 @@ endif
 BUILDTIME=$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 LDFLAGS=-ldflags \
-	'-X "github.com/ciena/voltctl/cli/version.Version=$(VERSION)"  \
-	 -X "github.com/ciena/voltctl/cli/version.VcsRef=$(GITCOMMIT)"  \
-	 -X "github.com/ciena/voltctl/cli/version.VcsDirty=$(GITDIRTY)"  \
-	 -X "github.com/ciena/voltctl/cli/version.GoVersion=$(GOVERSION)"  \
-	 -X "github.com/ciena/voltctl/cli/version.Os=$(HOST_OS)" \
-	 -X "github.com/ciena/voltctl/cli/version.Arch=$(HOST_ARCH)" \
-	 -X "github.com/ciena/voltctl/cli/version.BuildTime=$(BUILDTIME)"'
+	'-X "github.com/ciena/voltctl/internal/pkg/cli/version.Version=$(VERSION)"  \
+	 -X "github.com/ciena/voltctl/internal/pkg/cli/version.VcsRef=$(GITCOMMIT)"  \
+	 -X "github.com/ciena/voltctl/internal/pkg/cli/version.VcsDirty=$(GITDIRTY)"  \
+	 -X "github.com/ciena/voltctl/internal/pkg/cli/version.GoVersion=$(GOVERSION)"  \
+	 -X "github.com/ciena/voltctl/internal/pkg/cli/version.Os=$(HOST_OS)" \
+	 -X "github.com/ciena/voltctl/internal/pkg/cli/version.Arch=$(HOST_ARCH)" \
+	 -X "github.com/ciena/voltctl/internal/pkg/cli/version.BuildTime=$(BUILDTIME)"'
 
 # Release related items
 # Generates binaries in $RELEASE_DIR with name $RELEASE_NAME-$RELEASE_OS_ARCH
