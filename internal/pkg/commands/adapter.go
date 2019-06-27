@@ -17,41 +17,39 @@ package commands
 
 import (
 	"context"
-	"github.com/ciena/voltctl/format"
-	"github.com/ciena/voltctl/model"
+	"github.com/ciena/voltctl/pkg/format"
+	"github.com/ciena/voltctl/pkg/model"
 	"github.com/fullstorydev/grpcurl"
 	flags "github.com/jessevdk/go-flags"
 	"github.com/jhump/protoreflect/dynamic"
 )
 
 const (
-	DEFAULT_DEVICE_GROUP_FORMAT = "table{{ .Id }}\t{{.LogicalDevices}}\t{{.Devices}}"
+	DEFAULT_OUTPUT_FORMAT = "table{{ .Id }}\t{{.Vendor}}\t{{.Version}}"
 )
 
-type DeviceGroupList struct {
+type AdapterList struct {
 	ListOutputOptions
 }
 
-type DeviceGroupOpts struct {
-	List DeviceGroupList `command:"list"`
+type AdapterOpts struct {
+	List AdapterList `command:"list"`
 }
 
-var deviceGroupOpts = DeviceGroupOpts{}
+var adapterOpts = AdapterOpts{}
 
-func RegisterDeviceGroupCommands(parser *flags.Parser) {
-	parser.AddCommand("devicegroup", "device group commands", "Commands to query and manipulate VOLTHA device groups",
-		&deviceGroupOpts)
+func RegisterAdapterCommands(parent *flags.Parser) {
+	parent.AddCommand("adapter", "adapter commands", "Commands to query and manipulate VOLTHA adapters", &adapterOpts)
 }
 
-func (options *DeviceGroupList) Execute(args []string) error {
-
+func (options *AdapterList) Execute(args []string) error {
 	conn, err := NewConnection()
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
 
-	descriptor, method, err := GetMethod("devicegroup-list")
+	descriptor, method, err := GetMethod("adapter-list")
 	if err != nil {
 		return err
 	}
@@ -73,7 +71,6 @@ func (options *DeviceGroupList) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-
 	items, err := d.TryGetFieldByName("items")
 	if err != nil {
 		return err
@@ -81,16 +78,16 @@ func (options *DeviceGroupList) Execute(args []string) error {
 
 	outputFormat := CharReplacer.Replace(options.Format)
 	if outputFormat == "" {
-		outputFormat = DEFAULT_DEVICE_GROUP_FORMAT
+		outputFormat = DEFAULT_OUTPUT_FORMAT
 	}
+
 	if options.Quiet {
 		outputFormat = "{{.Id}}"
 	}
 
-	data := make([]model.DeviceGroup, len(items.([]interface{})))
+	data := make([]model.Adapter, len(items.([]interface{})))
 	for i, item := range items.([]interface{}) {
-		val := item.(*dynamic.Message)
-		data[i].PopulateFrom(val)
+		data[i].PopulateFrom(item.(*dynamic.Message))
 	}
 
 	result := CommandResult{
@@ -101,7 +98,7 @@ func (options *DeviceGroupList) Execute(args []string) error {
 		NameLimit: options.NameLimit,
 		Data:      data,
 	}
-
 	GenerateOutput(&result)
+
 	return nil
 }

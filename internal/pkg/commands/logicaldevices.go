@@ -18,8 +18,8 @@ package commands
 import (
 	"context"
 	"fmt"
-	"github.com/ciena/voltctl/format"
-	"github.com/ciena/voltctl/model"
+	"github.com/ciena/voltctl/pkg/format"
+	"github.com/ciena/voltctl/pkg/model"
 	"github.com/fullstorydev/grpcurl"
 	flags "github.com/jessevdk/go-flags"
 	"github.com/jhump/protoreflect/dynamic"

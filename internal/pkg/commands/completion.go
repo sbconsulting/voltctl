@@ -17,7 +17,7 @@ package commands
 
 import (
 	"fmt"
-	"github.com/ciena/voltctl/completion"
+	"github.com/ciena/voltctl/internal/pkg/completion"
 	flags "github.com/jessevdk/go-flags"
 )
 

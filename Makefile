@@ -8,23 +8,23 @@ endif
 
 help:
 
-commands/voltha_v1_pb.go: protosets/voltha_v1.pb
+internal/pkg/commands/voltha_v1_pb.go: assets/protosets/voltha_v1.pb
 	@echo "package commands" > $@
 	@echo "" >> $@
 	@echo "var V1Descriptor = []byte{" >> $@
-	hexdump -ve '1/1 "0x%02x,"' protosets/voltha_v1.pb | fold -w 60 -s >> $@
+	hexdump -ve '1/1 "0x%02x,"' assets/protosets/voltha_v1.pb | fold -w 60 -s >> $@
 	@echo "}" >> $@
 	@go fmt $@
 
-commands/voltha_v2_pb.go: protosets/voltha_v2.pb
+internal/pkg/commands/voltha_v2_pb.go: assets/protosets/voltha_v2.pb
 	@echo "package commands" > $@
 	@echo "" >> $@
 	@echo "var V2Descriptor = []byte{" >> $@
-	hexdump -ve '1/1 "0x%02x,"' protosets/voltha_v2.pb | fold -w 60 -s >> $@
+	hexdump -ve '1/1 "0x%02x,"' assets/protosets/voltha_v2.pb | fold -w 60 -s >> $@
 	@echo "}" >> $@
 	@go fmt $@
 
-encode-protosets: commands/voltha_v1_pb.go commands/voltha_v2_pb.go
+encode-protosets: internal/pkg/commands/voltha_v1_pb.go internal/pkg/commands/voltha_v2_pb.go
 
 VERSION=$(shell cat $(GOPATH)/src/github.com/ciena/voltctl/VERSION)
 GITCOMMIT=$(shell git rev-parse HEAD)
@@ -70,21 +70,21 @@ dependencies:
 $(RELEASE_BINS): dependencies
 	mkdir -p $(RELEASE_DIR)
 	GOPATH=$(GOPATH) GOOS=$(rel_os) GOARCH=$(rel_arch) \
-	       go build -v $(LDFLAGS) -o "$@" cmd/voltctl.go
+	       go build -v $(LDFLAGS) -o "$@" cmd/voltctl/voltctl.go
 
 release: $(RELEASE_BINS)
 
 build: dependencies
 	GOPATH=$(GOPATH) \
 	       go build $(LDFLAGS) \
-	       cmd/voltctl.go
+	       cmd/voltctl/voltctl.go
 
 install: dependencies
 	GOPATH=$(GOPATH) GOBIN=$(GOPATH)/bin  go install $(LDFLAGS) \
-	       cmd/voltctl.go
+	       cmd/voltctl/voltctl.go
 
 run: dependencies
-	GOPATH=$(GOPATH) go run $(LDFLAGS) github.com/ciena/voltctl/cmd $(CMD) 
+	GOPATH=$(GOPATH) go run $(LDFLAGS) github.com/ciena/voltctl/cmd/voltctl $(CMD) 
 
 lint: dependencies
 	GOPATH=$(GOPATH) find $(GOPATH)/src/github.com/ciena/voltctl -name "*.go" -not -path '$(GOPATH)/src/github.com/ciena/voltctl/vendor/*' | xargs gofmt -l
