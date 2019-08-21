@@ -16,6 +16,7 @@
 package commands
 
 import (
+	"fmt"
 	"github.com/golang/protobuf/proto"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/dynamic"
@@ -65,7 +66,11 @@ func (h *RpcEventHandler) GetParams(msg proto.Message) error {
 	}
 
 	for k, v := range fields {
-		dmsg.TrySetFieldByName(k, v)
+		err := dmsg.TrySetFieldByName(k, v)
+		if err != nil {
+			fmt.Printf("Failed to set field %s in proto %s, err %v\n", k, dmsg.XXX_MessageName(), err)
+			panic("GetParams failure")
+		}
 	}
 	delete(h.Fields, dmsg.XXX_MessageName())
 

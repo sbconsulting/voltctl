@@ -17,7 +17,6 @@ package commands
 
 import (
 	"context"
-	"fmt"
 	"github.com/ciena/voltctl/pkg/format"
 	"github.com/fullstorydev/grpcurl"
 	flags "github.com/jessevdk/go-flags"
@@ -34,11 +33,13 @@ type GoRoutineCountOpts struct {
 
 type ResultOutput struct {
 	Status string
+	Error  string
 }
 
 type SetLogLevelOpts struct {
 	OutputOptions
 	Component string `short:"c" long:"component" description:"Component name to set filter level"`
+	Package   string `short:"p" long:"package" description:"Package name to set filter level"`
 	Args      struct {
 		Level string
 	} `positional-args:"yes" required:"yes"`
@@ -57,7 +58,7 @@ var resultInfo = ResultOutput{}
 
 const DefaultGoRoutineCountFormat = `{{.Count}}`
 
-const DefaultResultFormat = "{{.Status}}"
+const DefaultResultFormat = "{{.Status}}{{ .Error }}"
 
 func RegisterAffinityCommands(parent *flags.Parser) {
 	_, err := parent.AddCommand("affinity", "affinity router stuff", "Affinity Router Stuff", &affinityOpts)
@@ -132,24 +133,9 @@ func (options *SetLogLevelOpts) Execute(args []string) error {
 	defer cancel()
 
 	ll := make(map[string]interface{})
-	ll["component"] = options.Component
-
-	switch options.Args.Level {
-	case "DEBUG":
-		ll["level"] = 0
-	case "INFO":
-		ll["level"] = 1
-	case "WARNING":
-		ll["level"] = 2
-	case "ERROR":
-		ll["level"] = 3
-	case "PANIC":
-		ll["level"] = 4
-	case "FATAL":
-		ll["level"] = 5
-	default:
-		return fmt.Errorf("Unknown log level %s", options.Args.Level)
-	}
+	ll["component_name"] = options.Component
+	ll["package_name"] = options.Package
+	ll["level"] = options.Args.Level
 
 	h := &RpcEventHandler{
 		Fields: map[string]map[string]interface{}{"afrouter.LogLevel": ll},
@@ -177,6 +163,12 @@ func (options *SetLogLevelOpts) Execute(args []string) error {
 	} else {
 		resultInfo.Status = "Failure"
 	}
+
+	errorText, err := d.TryGetFieldByName("error")
+	if err != nil {
+		return err
+	}
+	resultInfo.Error = errorText.(string)
 
 	outputFormat := CharReplacer.Replace(options.Format)
 	if outputFormat == "" {
