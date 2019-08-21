@@ -129,6 +129,9 @@ var functionMap = map[string]map[string]string{
 	"get-goroutine-count": {
 		"v2": "afrouter.Configuration.GetGoroutineCount",
 	},
+	"set-log-level": {
+		"v2": "afrouter.Configuration.SetLogLevel",
+	},
 }
 
 func GetMethod(name string) (grpcurl.DescriptorSource, string, error) {
